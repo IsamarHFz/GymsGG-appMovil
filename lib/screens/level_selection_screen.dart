@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:gymsgg_app/screens/routine_selection_screen.dart';
 import 'package:gymsgg_app/theme/app_theme.dart';
 
 class FitnessLevelScreen extends StatefulWidget {
@@ -202,14 +201,6 @@ class _FitnessLevelScreenState extends State<FitnessLevelScreen> {
       child: ElevatedButton(
         onPressed: () {
           debugPrint('Nivel seleccionado: $selectedLevel');
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder:
-                  (context) =>
-                      RoutineSelectionScreen(selectedLevel: selectedLevel),
-            ),
-          );
         },
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
