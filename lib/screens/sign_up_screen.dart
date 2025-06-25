@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gymsgg_app/screens/login_screen.dart';
+import 'package:gymsgg_app/services/firebase_service.dart';
 import 'package:gymsgg_app/theme/app_theme.dart';
 import 'package:gymsgg_app/services/firebase_service.dart';
 

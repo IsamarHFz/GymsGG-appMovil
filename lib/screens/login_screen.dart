@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:gymsgg_app/screens/fitness_level_screen.dart';
-import 'package:gymsgg_app/screens/forgot_password_screen.dart';
+import 'package:gymsgg_app/screens/sign_up_screen.dart';
 import 'package:gymsgg_app/theme/app_theme.dart';
+import 'package:gymsgg_app/services/firebase_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,9 +12,19 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final TextEditingController usernameController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
   bool _obscurePassword = true;
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,14 +35,17 @@ class _LoginScreenState extends State<LoginScreen> {
         body: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(32.0),
-            child: Column(
-              children: [
-                _buildHeader(),
-                const SizedBox(height: 60),
-                _buildLoginForm(),
-                const SizedBox(height: 40),
-                _buildForgotPassword(),
-              ],
+            child: Form(
+              key: _formKey,
+              child: Column(
+                children: [
+                  _buildHeader(),
+                  const SizedBox(height: 40),
+                  _buildLoginForm(),
+                  const SizedBox(height: 20),
+                  _buildSignUpLink(),
+                ],
+              ),
             ),
           ),
         ),
@@ -42,44 +56,25 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildHeader() {
     return Column(
       children: [
-        Row(
-          children: [
-            IconButton(
-              onPressed: () => Navigator.pop(context),
-              icon: const Icon(
-                Icons.arrow_back_ios,
-                color: AppTheme.iconColor,
-                size: 24,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 40),
-        _buildLogo(),
-      ],
-    );
-  }
-
-  Widget _buildLogo() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: AppTheme.cardColor.withOpacity(0.3),
-        border: Border.all(color: AppTheme.accentColor.withOpacity(0.3)),
-      ),
-      child: Column(
-        children: [
-          ClipOval(
-            child: Image.asset(
-              'assets/images/logo.png',
-              width: 110,
-              height: 110,
-              fit: BoxFit.cover,
-            ),
+        const Text(
+          'Iniciar Sesión',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: AppTheme.iconColor,
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'Bienvenido de vuelta',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: AppTheme.textColor.withOpacity(0.7),
+            fontSize: 16,
+          ),
+        ),
+      ],
     );
   }
 
@@ -87,9 +82,10 @@ class _LoginScreenState extends State<LoginScreen> {
     return Column(
       children: [
         _buildInputField(
-          controller: usernameController,
-          hintText: 'Usuario',
+          controller: emailController,
+          hintText: 'Email o Usuario',
           icon: Icons.person_outline,
+          validator: _validateEmailOrUsername,
         ),
         const SizedBox(height: 20),
         _buildInputField(
@@ -97,6 +93,13 @@ class _LoginScreenState extends State<LoginScreen> {
           hintText: 'Contraseña',
           icon: Icons.lock_outline,
           isPassword: true,
+          obscureText: _obscurePassword,
+          onToggleVisibility: () {
+            setState(() {
+              _obscurePassword = !_obscurePassword;
+            });
+          },
+          validator: _validatePassword,
         ),
         const SizedBox(height: 40),
         _buildLoginButton(),
@@ -109,6 +112,9 @@ class _LoginScreenState extends State<LoginScreen> {
     required String hintText,
     required IconData icon,
     bool isPassword = false,
+    bool obscureText = false,
+    VoidCallback? onToggleVisibility,
+    String? Function(String?)? validator,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -116,10 +122,12 @@ class _LoginScreenState extends State<LoginScreen> {
         borderRadius: BorderRadius.circular(25),
         border: Border.all(color: AppTheme.accentColor.withOpacity(0.3)),
       ),
-      child: TextField(
+      child: TextFormField(
         controller: controller,
-        obscureText: isPassword ? _obscurePassword : false,
+        obscureText: obscureText,
+        enabled: !_isLoading,
         style: const TextStyle(color: AppTheme.iconColor, fontSize: 16),
+        validator: validator,
         decoration: InputDecoration(
           hintText: hintText,
           hintStyle: TextStyle(color: AppTheme.textColor.withOpacity(0.7)),
@@ -128,23 +136,20 @@ class _LoginScreenState extends State<LoginScreen> {
               isPassword
                   ? IconButton(
                     icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_off
-                          : Icons.visibility,
+                      obscureText ? Icons.visibility_off : Icons.visibility,
                       color: AppTheme.textColor,
                     ),
-                    onPressed: () {
-                      setState(() {
-                        _obscurePassword = !_obscurePassword;
-                      });
-                    },
+                    onPressed: _isLoading ? null : onToggleVisibility,
                   )
                   : null,
           border: InputBorder.none,
+          errorBorder: InputBorder.none,
+          focusedErrorBorder: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 20,
             vertical: 20,
           ),
+          errorStyle: const TextStyle(color: Colors.red, fontSize: 12),
         ),
       ),
     );
@@ -156,28 +161,20 @@ class _LoginScreenState extends State<LoginScreen> {
       height: 60,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
-        gradient: const LinearGradient(
-          colors: [AppTheme.accentColor, Color(0xFFFFA500)],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.accentColor.withOpacity(0.3),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        gradient:
+            _isLoading
+                ? LinearGradient(
+                  colors: [
+                    AppTheme.accentColor.withOpacity(0.5),
+                    const Color(0xFFFFA500).withOpacity(0.5),
+                  ],
+                )
+                : const LinearGradient(
+                  colors: [AppTheme.accentColor, Color(0xFFFFA500)],
+                ),
       ),
       child: ElevatedButton(
-        onPressed: () {
-          // Aquí iría la lógica de autenticación
-          debugPrint("Usuario: ${usernameController.text}");
-          debugPrint("Contraseña: ${passwordController.text}");
-
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const FitnessLevelScreen()),
-          );
-        },
+        onPressed: _isLoading ? null : _handleLogin,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
@@ -185,33 +182,185 @@ class _LoginScreenState extends State<LoginScreen> {
             borderRadius: BorderRadius.circular(30),
           ),
         ),
-        child: const Text(
-          'Iniciar sesión',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: AppTheme.primaryColor,
-          ),
-        ),
+        child:
+            _isLoading
+                ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: AppTheme.primaryColor,
+                    strokeWidth: 2.5,
+                  ),
+                )
+                : const Text(
+                  'Iniciar Sesión',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primaryColor,
+                  ),
+                ),
       ),
     );
   }
 
-  Widget _buildForgotPassword() {
-    return TextButton(
-      onPressed: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const ForgotPasswordScreen()),
-        );
-      },
-      child: const Text(
-        '¿Olvidaste la contraseña?',
-        style: TextStyle(
-          color: AppTheme.textColor,
-          fontSize: 16,
-          decoration: TextDecoration.underline,
+  Widget _buildSignUpLink() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          '¿No tienes cuenta? ',
+          style: TextStyle(
+            color: AppTheme.textColor.withOpacity(0.7),
+            fontSize: 14,
+          ),
         ),
+        GestureDetector(
+          onTap:
+              _isLoading
+                  ? null
+                  : () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SignUpScreen(),
+                      ),
+                    );
+                  },
+          child: Text(
+            'Regístrate',
+            style: TextStyle(
+              color:
+                  _isLoading
+                      ? AppTheme.accentColor.withOpacity(0.5)
+                      : AppTheme.accentColor,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Validaciones
+  String? _validateEmailOrUsername(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'El email o usuario es requerido';
+    }
+
+    // Verificar si es un email o un username
+    if (value.contains('@')) {
+      // Es un email - validación básica
+      if (!_isValidEmail(value)) {
+        return 'Formato de email inválido';
+      }
+    } else {
+      // Es un username - validación básica
+      if (!_isValidUsername(value)) {
+        return 'Usuario inválido (min. 3 caracteres, solo letras, números y _)';
+      }
+    }
+    return null;
+  }
+
+  String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'La contraseña es requerida';
+    }
+    if (value.length < 6) {
+      return 'La contraseña debe tener al menos 6 caracteres';
+    }
+    return null;
+  }
+
+  // Métodos de validación auxiliares
+  bool _isValidEmail(String email) {
+    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
+  }
+
+  bool _isValidUsername(String username) {
+    return username.length >= 3 &&
+        RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(username);
+  }
+
+  // Manejar el login
+  Future<void> _handleLogin() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final result = await FirebaseService.signInUser(
+        emailOrUsername: emailController.text.trim(),
+        password: passwordController.text,
+      );
+
+      if (!mounted) return;
+
+      if (result['success']) {
+        _showSuccessMessage(result['message']);
+
+        // Navegar a la pantalla principal después de un breve delay
+        await Future.delayed(const Duration(seconds: 1));
+        if (mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const FitnessLevelScreen()),
+            (route) => false,
+          );
+        }
+      } else {
+        _showErrorMessage(result['message']);
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorMessage('Error inesperado: ${e.toString()}');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _showSuccessMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  void _showErrorMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        duration: const Duration(seconds: 4),
       ),
     );
   }

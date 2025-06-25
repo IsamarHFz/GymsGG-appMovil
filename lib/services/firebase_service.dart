@@ -147,12 +147,26 @@ class FirebaseService {
     }
   }
 
-  // Iniciar sesión
-  static Future<Map<String, dynamic>> signIn({
-    required String email,
+  // Iniciar sesión con email o username
+  static Future<Map<String, dynamic>> signInUser({
+    required String emailOrUsername,
     required String password,
   }) async {
     try {
+      String email = emailOrUsername;
+
+      // Si el usuario ingresó un username en lugar de email,
+      // necesitamos convertirlo a email
+      if (!emailOrUsername.contains('@')) {
+        // Buscar el email asociado al username en Firestore
+        final userEmail = await _getUserEmailByUsername(emailOrUsername);
+        if (userEmail == null) {
+          return {'success': false, 'message': 'Usuario no encontrado'};
+        }
+        email = userEmail;
+      }
+
+      // Intentar hacer login con email y contraseña
       final UserCredential userCredential = await _auth
           .signInWithEmailAndPassword(email: email, password: password);
 
@@ -173,12 +187,12 @@ class FirebaseService {
       return {'success': false, 'message': 'Error al iniciar sesión'};
     } on FirebaseAuthException catch (e) {
       if (kDebugMode) {
-        print('FirebaseAuthException in signIn: ${e.code} - ${e.message}');
+        print('FirebaseAuthException in signInUser: ${e.code} - ${e.message}');
       }
       return {'success': false, 'message': _getAuthErrorMessage(e.code)};
     } catch (e) {
       if (kDebugMode) {
-        print('Unexpected error in signIn: $e');
+        print('Unexpected error in signInUser: $e');
       }
       return {
         'success': false,
@@ -187,181 +201,101 @@ class FirebaseService {
     }
   }
 
-  // Cerrar sesión
-  static Future<bool> signOut() async {
+  // Método auxiliar para obtener email por username
+  static Future<String?> _getUserEmailByUsername(String username) async {
     try {
-      await _auth.signOut();
-      return true;
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error signing out: $e');
-      }
-      return false;
-    }
-  }
+      final QuerySnapshot userQuery =
+          await _firestore
+              .collection('users')
+              .where('username', isEqualTo: username.toLowerCase())
+              .limit(1)
+              .get();
 
-  // Obtener usuario actual
-  static User? getCurrentUser() {
-    try {
-      return _auth.currentUser;
+      if (userQuery.docs.isNotEmpty) {
+        return userQuery.docs.first.get('email') as String;
+      }
+      return null;
     } catch (e) {
       if (kDebugMode) {
-        print('Error getting current user: $e');
+        print('Error getting user email by username: $e');
       }
       return null;
     }
   }
 
-  // Verificar si el usuario está autenticado
-  static bool isUserAuthenticated() {
+  // Cerrar sesión
+  static Future<Map<String, dynamic>> signOut() async {
     try {
-      return _auth.currentUser != null;
+      await _auth.signOut();
+      return {'success': true, 'message': 'Sesión cerrada exitosamente'};
     } catch (e) {
       if (kDebugMode) {
-        print('Error checking authentication: $e');
+        print('Error signing out: $e');
       }
-      return false;
+      return {'success': false, 'message': 'Error al cerrar sesión'};
     }
   }
 
-  // Recargar usuario actual
-  static Future<void> reloadCurrentUser() async {
-    try {
-      final user = getCurrentUser();
-      if (user != null) {
-        await user.reload();
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error reloading user: $e');
-      }
-    }
+  // Obtener usuario actual
+  static User? getCurrentUser() {
+    return _auth.currentUser;
   }
 
-  // Verificar si el email está verificado
-  static bool isEmailVerified() {
-    try {
-      final user = getCurrentUser();
-      return user?.emailVerified ?? false;
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error checking email verification: $e');
-      }
-      return false;
-    }
+  // Verificar si hay un usuario autenticado
+  static bool isUserLoggedIn() {
+    return _auth.currentUser != null;
   }
 
-  // Enviar email de verificación
-  static Future<bool> sendEmailVerification() async {
-    try {
-      final user = getCurrentUser();
-      if (user != null && !user.emailVerified) {
-        await user.sendEmailVerification();
-        return true;
-      }
-      return false;
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error sending email verification: $e');
-      }
-      return false;
-    }
-  }
+  // Stream del estado de autenticación
+  static Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  // Restablecer contraseña
-  static Future<Map<String, dynamic>> resetPassword(String email) async {
-    try {
-      await _auth.sendPasswordResetEmail(email: email);
-      return {'success': true, 'message': 'Email de recuperación enviado'};
-    } on FirebaseAuthException catch (e) {
-      if (kDebugMode) {
-        print('FirebaseAuthException in resetPassword: ${e.code}');
-      }
-      return {'success': false, 'message': _getAuthErrorMessage(e.code)};
-    } catch (e) {
-      if (kDebugMode) {
-        print('Unexpected error in resetPassword: $e');
-      }
-      return {
-        'success': false,
-        'message': 'Error al enviar email de recuperación',
-      };
-    }
-  }
-
-  // Stream de cambios de autenticación
-  static Stream<User?> authStateChanges() {
-    return _auth.authStateChanges();
-  }
-
-  // Mensajes de error personalizados
+  // Método para obtener mensajes de error más amigables
   static String _getAuthErrorMessage(String errorCode) {
     switch (errorCode) {
-      case 'email-already-in-use':
-        return 'Este email ya está registrado';
-      case 'weak-password':
-        return 'La contraseña es muy débil (mínimo 6 caracteres)';
-      case 'invalid-email':
-        return 'El formato del email es inválido';
       case 'user-not-found':
         return 'No se encontró una cuenta con este email';
       case 'wrong-password':
         return 'Contraseña incorrecta';
+      case 'email-already-in-use':
+        return 'Ya existe una cuenta con este email';
+      case 'weak-password':
+        return 'La contraseña es muy débil';
+      case 'invalid-email':
+        return 'El formato del email es inválido';
       case 'user-disabled':
         return 'Esta cuenta ha sido deshabilitada';
       case 'too-many-requests':
         return 'Demasiados intentos fallidos. Intenta más tarde';
-      case 'network-request-failed':
-        return 'Error de conexión. Verifica tu internet';
       case 'operation-not-allowed':
         return 'Operación no permitida';
       case 'invalid-credential':
         return 'Credenciales inválidas';
-      case 'account-exists-with-different-credential':
-        return 'Ya existe una cuenta con este email';
-      case 'requires-recent-login':
-        return 'Esta operación requiere autenticación reciente';
-      case 'credential-already-in-use':
-        return 'Estas credenciales ya están en uso';
-      case 'invalid-verification-code':
-        return 'Código de verificación inválido';
-      case 'invalid-verification-id':
-        return 'ID de verificación inválido';
       default:
-        if (kDebugMode) {
-          print('Unhandled auth error code: $errorCode');
-        }
-        return 'Error de autenticación. Intenta nuevamente';
+        return 'Error de autenticación: $errorCode';
     }
   }
 
-  // Validaciones mejoradas
+  // Métodos de validación auxiliares
   static bool isValidEmail(String email) {
-    if (email.isEmpty) return false;
-    return RegExp(
-      r'^[a-zA-Z0-9.!#$%&*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$',
-    ).hasMatch(email);
+    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
+  }
+
+  static bool isValidUsername(String username) {
+    return username.length >= 3 &&
+        RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(username);
   }
 
   static bool isValidPassword(String password) {
     return password.length >= 6;
   }
 
-  static bool isValidUsername(String username) {
-    if (username.isEmpty || username.length < 3 || username.length > 20) {
-      return false;
-    }
-    return RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(username);
-  }
-
-  // Validación de nombre completo
-  static bool isValidFullName(String name) {
-    if (name.isEmpty || name.length < 2) return false;
-    return RegExp(r'^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$').hasMatch(name);
-  }
-
-  // Limpiar recursos
-  static void dispose() {
-    // Método para limpiar recursos si es necesario
+  // OPCIONAL: Mantener el método signIn original para compatibilidad
+  // (solo si lo usas en otras partes de tu app)
+  static Future<Map<String, dynamic>> signIn({
+    required String email,
+    required String password,
+  }) async {
+    // Simplemente llama al nuevo método
+    return await signInUser(emailOrUsername: email, password: password);
   }
 }

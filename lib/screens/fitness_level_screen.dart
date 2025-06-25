@@ -19,17 +19,35 @@ class _FitnessLevelScreenState extends State<FitnessLevelScreen> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(32.0),
-            child: Column(
-              children: [
-                _buildHeader(),
-                const SizedBox(height: 60),
-                _buildLevelOptions(),
-                const SizedBox(height: 40),
-                if (selectedLevel.isNotEmpty) _buildContinueButton(),
-              ],
-            ),
+          child: Column(
+            children: [
+              // Header fijo
+              Padding(
+                padding: const EdgeInsets.fromLTRB(32, 32, 32, 0),
+                child: _buildHeader(),
+              ),
+
+              // Contenido scrolleable
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: Padding(
+                    padding: const EdgeInsets.all(32.0),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 40),
+                        _buildLevelOptions(),
+                        const SizedBox(height: 40),
+                        if (selectedLevel.isNotEmpty) _buildContinueButton(),
+                        const SizedBox(
+                          height: 20,
+                        ), // Espacio adicional al final
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -67,32 +85,29 @@ class _FitnessLevelScreenState extends State<FitnessLevelScreen> {
   }
 
   Widget _buildLevelOptions() {
-    return Expanded(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _buildLevelCard(
-            title: 'Principiante',
-            description: 'Estoy comenzando o\ntengo poca experiencia.',
-            icon: Icons.directions_walk,
-            level: 'beginner',
-          ),
-          const SizedBox(height: 20),
-          _buildLevelCard(
-            title: 'Intermedio',
-            description: 'Entreno regularmente y\nconozco ejercicios básicos.',
-            icon: Icons.directions_run,
-            level: 'intermediate',
-          ),
-          const SizedBox(height: 20),
-          _buildLevelCard(
-            title: 'Avanzado',
-            description: 'Tengo mucha experiencia\ny entreno constantemente.',
-            icon: Icons.fitness_center,
-            level: 'advanced',
-          ),
-        ],
-      ),
+    return Column(
+      children: [
+        _buildLevelCard(
+          title: 'Principiante',
+          description: 'Estoy comenzando o\ntengo poca experiencia.',
+          icon: Icons.directions_walk,
+          level: 'beginner',
+        ),
+        const SizedBox(height: 20),
+        _buildLevelCard(
+          title: 'Intermedio',
+          description: 'Entreno regularmente y\nconozco ejercicios básicos.',
+          icon: Icons.directions_run,
+          level: 'intermediate',
+        ),
+        const SizedBox(height: 20),
+        _buildLevelCard(
+          title: 'Avanzado',
+          description: 'Tengo mucha experiencia\ny entreno constantemente.',
+          icon: Icons.fitness_center,
+          level: 'advanced',
+        ),
+      ],
     );
   }
 
@@ -174,7 +189,7 @@ class _FitnessLevelScreenState extends State<FitnessLevelScreen> {
                   const SizedBox(height: 8),
                   Text(
                     description,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: AppTheme.textColor,
                       fontSize: 14,
                       height: 1.3,
