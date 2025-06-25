@@ -10,7 +10,10 @@ dependencies:
   flutter:
     sdk: flutter
   device_info_plus: ^10.0.1
+  # Dependencias Firebase
   firebase_core: ^3.14.0
+  cloud_firestore: ^5.6.9
+  firebase_auth: 5.6.0
 
 dev_dependencies:
   flutter_test:

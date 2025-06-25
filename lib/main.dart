@@ -3,7 +3,13 @@ import 'screens/home_screen.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'dart:io';
 
-void main() {
+// Importaciones de Firebase
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const MyApp());
 }
 

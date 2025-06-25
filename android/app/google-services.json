@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "109587486706",
+    "project_id": "gymsgg-mov",
+    "storage_bucket": "gymsgg-mov.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:109587486706:android:6e21bf7f4aef13fd677d6b",
+        "android_client_info": {
+          "package_name": "com.example.gymsgg_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCCBEnp8cYNp3T6jYvaL7aYG0b2JYlDnTg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
