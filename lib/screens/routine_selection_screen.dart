@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gymsgg_app/screens/routine_details_screen.dart';
 import 'package:gymsgg_app/theme/app_theme.dart';
 
 class RoutineSelectionScreen extends StatefulWidget {
@@ -13,14 +14,13 @@ class RoutineSelectionScreen extends StatefulWidget {
 class _RoutineSelectionScreenState extends State<RoutineSelectionScreen> {
   String selectedRoutine = '';
 
-  // Rutinas personalizadas por nivel
+  // Rutinas personalizadas por nivel (sin ejercicios)
   Map<String, List<RoutineData>> get routinesByLevel => {
     'beginner': [
       RoutineData(
         id: 'beginner_basic',
         title: 'Pierna y gluteos',
         description: 'Ejercicios fundamentales\npara comenzar',
-        exercises: ['Sentadillas zumo', 'Hip trhust', 'Bulgara', 'Extensiones'],
         duration: '10 min cada rutina',
         difficulty: 'Medio',
         icon: Icons.fitness_center,
@@ -29,12 +29,6 @@ class _RoutineSelectionScreenState extends State<RoutineSelectionScreen> {
         id: 'beginner_cardio',
         title: 'Espalda y brazo',
         description: 'Activación cardiovascular\nbásica',
-        exercises: [
-          'Marcha en sitio',
-          'Elevación rodillas',
-          'Movimiento brazos',
-          'Respiración',
-        ],
         duration: '10-15 min',
         difficulty: 'Muy Fácil',
         icon: Icons.favorite,
@@ -43,7 +37,6 @@ class _RoutineSelectionScreenState extends State<RoutineSelectionScreen> {
         id: 'beginner_flexibility',
         title: 'Abdominales y Cardio',
         description: 'Estiramientos y\nmobilidad articular',
-        exercises: ['Estiramientos', 'Movilidad', 'Respiración', 'Relajación'],
         duration: '12-18 min',
         difficulty: 'Fácil',
         icon: Icons.self_improvement,
@@ -54,13 +47,6 @@ class _RoutineSelectionScreenState extends State<RoutineSelectionScreen> {
         id: 'intermediate_strength',
         title: 'Fuerza Completa',
         description: 'Trabajo de fuerza\npara todo el cuerpo',
-        exercises: [
-          'Sentadillas con peso',
-          'Flexiones',
-          'Burpees',
-          'Mountain climbers',
-          'Plancha lateral',
-        ],
         duration: '25-30 min',
         difficulty: 'Moderado',
         icon: Icons.fitness_center,
@@ -69,13 +55,6 @@ class _RoutineSelectionScreenState extends State<RoutineSelectionScreen> {
         id: 'intermediate_hiit',
         title: 'HIIT Intermedio',
         description: 'Intervalos de alta\nintensidad',
-        exercises: [
-          'Jumping jacks',
-          'Burpees',
-          'Sprint en sitio',
-          'Sentadillas salto',
-          'Descansos',
-        ],
         duration: '20-25 min',
         difficulty: 'Intenso',
         icon: Icons.whatshot,
@@ -84,13 +63,6 @@ class _RoutineSelectionScreenState extends State<RoutineSelectionScreen> {
         id: 'intermediate_core',
         title: 'Core Power',
         description: 'Fortalecimiento del\nnúcleo corporal',
-        exercises: [
-          'Plancha',
-          'Abdominales',
-          'Russian twists',
-          'Dead bug',
-          'Bird dog',
-        ],
         duration: '18-22 min',
         difficulty: 'Moderado',
         icon: Icons.center_focus_strong,
@@ -101,13 +73,6 @@ class _RoutineSelectionScreenState extends State<RoutineSelectionScreen> {
         id: 'advanced_beast',
         title: 'Bestia Mode',
         description: 'Rutina extrema para\natletas avanzados',
-        exercises: [
-          'Burpees con salto',
-          'Flexiones diamante',
-          'Pistol squats',
-          'Handstand push-ups',
-          'Muscle ups',
-        ],
         duration: '35-45 min',
         difficulty: 'Extremo',
         icon: Icons.flash_on,
@@ -116,13 +81,6 @@ class _RoutineSelectionScreenState extends State<RoutineSelectionScreen> {
         id: 'advanced_warrior',
         title: 'Warrior Training',
         description: 'Entrenamiento de\nguerrero funcional',
-        exercises: [
-          'Complex movements',
-          'Olympic lifts',
-          'Plyometrics',
-          'Advanced calisthenics',
-          'Endurance',
-        ],
         duration: '40-50 min',
         difficulty: 'Máximo',
         icon: Icons.sports_martial_arts,
@@ -131,13 +89,6 @@ class _RoutineSelectionScreenState extends State<RoutineSelectionScreen> {
         id: 'advanced_endurance',
         title: 'Resistencia Elite',
         description: 'Máxima resistencia\ny condición física',
-        exercises: [
-          'Circuitos largos',
-          'Cardio intenso',
-          'Fuerza resistencia',
-          'Pliometría',
-          'Recovery',
-        ],
         duration: '45-60 min',
         difficulty: 'Elite',
         icon: Icons.timer,
@@ -327,140 +278,84 @@ class _RoutineSelectionScreenState extends State<RoutineSelectionScreen> {
                   ]
                   : null,
         ),
-        child: Column(
+        child: Row(
           children: [
-            Row(
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color:
+                    isSelected
+                        ? AppTheme.accentColor.withOpacity(0.2)
+                        : AppTheme.cardColor,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                routine.icon,
+                color: isSelected ? AppTheme.accentColor : AppTheme.textColor,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 15),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    routine.title,
+                    style: TextStyle(
+                      color:
+                          isSelected
+                              ? AppTheme.accentColor
+                              : AppTheme.iconColor,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    routine.description,
+                    style: const TextStyle(
+                      color: AppTheme.textColor,
+                      fontSize: 12,
+                      height: 1.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
-                    color:
-                        isSelected
-                            ? AppTheme.accentColor.withOpacity(0.2)
-                            : AppTheme.cardColor,
-                    shape: BoxShape.circle,
+                    color: _getDifficultyColor(
+                      routine.difficulty,
+                    ).withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(
-                    routine.icon,
-                    color:
-                        isSelected ? AppTheme.accentColor : AppTheme.textColor,
-                    size: 24,
+                  child: Text(
+                    routine.difficulty,
+                    style: TextStyle(
+                      color: _getDifficultyColor(routine.difficulty),
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 15),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        routine.title,
-                        style: TextStyle(
-                          color:
-                              isSelected
-                                  ? AppTheme.accentColor
-                                  : AppTheme.iconColor,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        routine.description,
-                        style: const TextStyle(
-                          color: AppTheme.textColor,
-                          fontSize: 12,
-                          height: 1.2,
-                        ),
-                      ),
-                    ],
+                const SizedBox(height: 4),
+                Text(
+                  routine.duration,
+                  style: const TextStyle(
+                    color: AppTheme.textColor,
+                    fontSize: 12,
                   ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _getDifficultyColor(
-                          routine.difficulty,
-                        ).withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        routine.difficulty,
-                        style: TextStyle(
-                          color: _getDifficultyColor(routine.difficulty),
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      routine.duration,
-                      style: const TextStyle(
-                        color: AppTheme.textColor,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),
-            if (isSelected) ...[
-              const SizedBox(height: 15),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.cardColor.withOpacity(0.5),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Ejercicios incluidos:',
-                      style: TextStyle(
-                        color: AppTheme.iconColor,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children:
-                          routine.exercises.map((exercise) {
-                            return Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppTheme.accentColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: AppTheme.accentColor.withOpacity(0.3),
-                                ),
-                              ),
-                              child: Text(
-                                exercise,
-                                style: const TextStyle(
-                                  color: AppTheme.textColor,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -485,7 +380,18 @@ class _RoutineSelectionScreenState extends State<RoutineSelectionScreen> {
           debugPrint('Rutina seleccionada: ${selectedRoutineData.title}');
           debugPrint('Nivel: ${widget.selectedLevel}');
           // Aquí puedes navegar a la siguiente pantalla
-          // Navigator.push(context, MaterialPageRoute(builder: (context) => WorkoutScreen(...)));
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder:
+                  (context) => RoutineDetailsScreen(
+                    routineName: '',
+                    level: '',
+                    difficulty: '',
+                    fitnessLevel: '',
+                  ),
+            ),
+          );
         },
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
@@ -495,7 +401,7 @@ class _RoutineSelectionScreenState extends State<RoutineSelectionScreen> {
           ),
         ),
         child: const Text(
-          'Empezar Rutina',
+          'Continuar',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -528,12 +434,11 @@ class _RoutineSelectionScreenState extends State<RoutineSelectionScreen> {
   }
 }
 
-// Clase para los datos de rutina
+// Clase para los datos de rutina (sin ejercicios)
 class RoutineData {
   final String id;
   final String title;
   final String description;
-  final List<String> exercises;
   final String duration;
   final String difficulty;
   final IconData icon;
@@ -542,7 +447,6 @@ class RoutineData {
     required this.id,
     required this.title,
     required this.description,
-    required this.exercises,
     required this.duration,
     required this.difficulty,
     required this.icon,

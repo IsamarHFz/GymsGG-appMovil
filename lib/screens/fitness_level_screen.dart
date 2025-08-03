@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:gymsgg_app/screens/routine_selection_screen.dart';
 import 'package:gymsgg_app/theme/app_theme.dart';
@@ -14,60 +15,43 @@ class _FitnessLevelScreenState extends State<FitnessLevelScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: AppTheme.foundColor,
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: SafeArea(
-          child: Column(
-            children: [
-              // Header fijo
-              Padding(
-                padding: const EdgeInsets.fromLTRB(32, 32, 32, 0),
-                child: _buildHeader(),
+    return Stack(
+      children: [
+        Container(decoration: AppTheme.foundColor),
+        Scaffold(
+          backgroundColor: Colors.transparent,
+          body: SafeArea(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.all(32.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(),
+                  const SizedBox(height: 60),
+                  _buildLevelOptions(),
+                  const SizedBox(height: 40),
+                  if (selectedLevel.isNotEmpty) _buildContinueButton(),
+                ],
               ),
-
-              // Contenido scrolleable
-              Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  child: Padding(
-                    padding: const EdgeInsets.all(32.0),
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 40),
-                        _buildLevelOptions(),
-                        const SizedBox(height: 40),
-                        if (selectedLevel.isNotEmpty) _buildContinueButton(),
-                        const SizedBox(
-                          height: 20,
-                        ), // Espacio adicional al final
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 
   Widget _buildHeader() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            IconButton(
-              onPressed: () => Navigator.pop(context),
-              icon: const Icon(
-                Icons.arrow_back_ios,
-                color: AppTheme.iconColor,
-                size: 24,
-              ),
-            ),
-          ],
+        IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(
+            Icons.arrow_back_ios,
+            color: AppTheme.iconColor,
+            size: 24,
+          ),
         ),
         const SizedBox(height: 20),
         const Text(
@@ -117,7 +101,7 @@ class _FitnessLevelScreenState extends State<FitnessLevelScreen> {
     required IconData icon,
     required String level,
   }) {
-    bool isSelected = selectedLevel == level;
+    final bool isSelected = selectedLevel == level;
 
     return GestureDetector(
       onTap: () {
@@ -151,7 +135,7 @@ class _FitnessLevelScreenState extends State<FitnessLevelScreen> {
                       spreadRadius: 2,
                     ),
                   ]
-                  : null,
+                  : [],
         ),
         child: Row(
           children: [
@@ -216,7 +200,9 @@ class _FitnessLevelScreenState extends State<FitnessLevelScreen> {
       ),
       child: ElevatedButton(
         onPressed: () {
-          debugPrint('Nivel seleccionado: $selectedLevel');
+          if (kDebugMode) {
+            debugPrint('Nivel seleccionado: $selectedLevel');
+          }
           Navigator.push(
             context,
             MaterialPageRoute(
