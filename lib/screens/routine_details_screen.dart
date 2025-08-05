@@ -1,8 +1,11 @@
+// screens/routine_details_screen.dart
 import 'package:flutter/material.dart';
+import 'package:gymsgg_app/screens/edit_routine_screen.dart';
+import 'package:gymsgg_app/screens/routine_execution_screen.dart';
+import 'package:gymsgg_app/models/routine_model.dart';
 import 'package:gymsgg_app/theme/app_theme.dart';
 
-class RoutineDetailsScreen extends StatelessWidget {
-  // Agregamos routeName como variable estática para compatibilidad
+class RoutineDetailsScreen extends StatefulWidget {
   static const String routeName = '/routine-details';
 
   final String routineName;
@@ -16,6 +19,51 @@ class RoutineDetailsScreen extends StatelessWidget {
     required this.difficulty,
     required String fitnessLevel,
   });
+
+  @override
+  State<RoutineDetailsScreen> createState() => _RoutineDetailsScreenState();
+}
+
+class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
+  late Routine currentRoutine;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeRoutine();
+  }
+
+  void _initializeRoutine() {
+    final exercisesList = _getExercises();
+    currentRoutine = Routine(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: widget.routineName,
+      level: widget.level,
+      difficulty: widget.difficulty,
+      duration: _getDuration(),
+      frequency: _getFrequency(),
+      equipment: _getEquipment(),
+      benefits: _getBenefits(),
+      exercises:
+          exercisesList.map((exerciseMap) {
+            return Exercise(
+              id:
+                  DateTime.now().millisecondsSinceEpoch.toString() +
+                  exerciseMap['name'].hashCode.toString(),
+              name: exerciseMap['name'],
+              target: exerciseMap['target'],
+              sets: exerciseMap['sets'],
+              rest: exerciseMap['rest'],
+              difficulty: exerciseMap['difficulty'],
+              iconName: _getIconName(exerciseMap['icon']),
+              order: exercisesList.indexOf(exerciseMap),
+            );
+          }).toList(),
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      userId: "",
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +114,7 @@ class RoutineDetailsScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  routineName,
+                  currentRoutine.name, // Cambio aquí: usar currentRoutine.name
                   style: const TextStyle(
                     color: AppTheme.iconColor,
                     fontSize: 24,
@@ -74,7 +122,7 @@ class RoutineDetailsScreen extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  'Nivel $level • $difficulty',
+                  'Nivel ${currentRoutine.level} • ${currentRoutine.difficulty}', // Cambio aquí también
                   style: TextStyle(
                     color: AppTheme.textColor.withOpacity(0.8),
                     fontSize: 16,
@@ -86,6 +134,48 @@ class RoutineDetailsScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  void _navigateToEditRoutine(BuildContext context) async {
+    // Cambio aquí: hacer la navegación async y esperar el resultado
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) =>
+                EditRoutineScreen(routine: currentRoutine, isNewRoutine: false),
+      ),
+    );
+
+    // Si se editó la rutina, actualizar el estado
+    if (result != null && result is Routine) {
+      setState(() {
+        currentRoutine = result;
+      });
+
+      // Mostrar confirmación
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('✅ Rutina personalizada guardada'),
+            backgroundColor: AppTheme.accentColor,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  String _getIconName(IconData icon) {
+    // Mapear IconData a String para la compatibilidad con el modelo
+    if (icon == Icons.fitness_center) return 'fitness_center';
+    if (icon == Icons.directions_run) return 'directions_run';
+    if (icon == Icons.straighten) return 'straighten';
+    if (icon == Icons.accessibility_new) return 'accessibility_new';
+    return 'fitness_center'; // default
   }
 
   Widget _buildRoutineInfo() {
@@ -114,11 +204,23 @@ class RoutineDetailsScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            _buildInfoRow(Icons.access_time, 'Duración', _getDuration()),
+            _buildInfoRow(
+              Icons.access_time,
+              'Duración',
+              currentRoutine.duration,
+            ),
             const SizedBox(height: 12),
-            _buildInfoRow(Icons.calendar_today, 'Frecuencia', _getFrequency()),
+            _buildInfoRow(
+              Icons.calendar_today,
+              'Frecuencia',
+              currentRoutine.frequency,
+            ),
             const SizedBox(height: 12),
-            _buildInfoRow(Icons.fitness_center, 'Equipo', _getEquipment()),
+            _buildInfoRow(
+              Icons.fitness_center,
+              'Equipo',
+              currentRoutine.equipment,
+            ),
             const SizedBox(height: 16),
             const Text(
               'Beneficios principales:',
@@ -129,7 +231,8 @@ class RoutineDetailsScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            ..._getBenefits().map(
+            ...currentRoutine.benefits.map(
+              // Cambio aquí: usar currentRoutine.benefits directamente
               (benefit) => Padding(
                 padding: const EdgeInsets.only(bottom: 8.0),
                 child: _buildBenefitChip(benefit),
@@ -185,107 +288,37 @@ class RoutineDetailsScreen extends StatelessWidget {
   }
 
   Widget _buildExercisesList() {
-    final exercises = _getExercises();
+    final exercises =
+        currentRoutine
+            .exercises; // Cambio aquí: usar currentRoutine.exercises directamente
 
     return Padding(
       padding: const EdgeInsets.all(20.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Ejercicios incluidos',
-            style: TextStyle(
-              color: AppTheme.accentColor,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Ejercicios incluidos',
+                style: TextStyle(
+                  color: AppTheme.accentColor,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                '${exercises.length} ejercicios',
+                style: TextStyle(
+                  color: AppTheme.textColor.withOpacity(0.8),
+                  fontSize: 14,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
-          ...exercises.map((exercise) => _buildExerciseCard(exercise)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildExerciseCard(Map<String, dynamic> exercise) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.cardColor.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppTheme.accentColor.withOpacity(0.2),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppTheme.accentColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  exercise['icon'],
-                  color: AppTheme.accentColor,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      exercise['name'],
-                      style: const TextStyle(
-                        color: AppTheme.iconColor,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      exercise['target'],
-                      style: TextStyle(
-                        color: AppTheme.textColor.withOpacity(0.8),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _getDifficultyColor(
-                    exercise['difficulty'],
-                  ).withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  exercise['difficulty'],
-                  style: TextStyle(
-                    color: _getDifficultyColor(exercise['difficulty']),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _buildExerciseDetail(Icons.repeat, exercise['sets']),
-              const SizedBox(width: 16),
-              _buildExerciseDetail(Icons.timer, exercise['rest']),
-            ],
-          ),
+          ...exercises.map((exercise) => _buildExerciseCardFromModel(exercise)),
         ],
       ),
     );
@@ -325,36 +358,30 @@ class RoutineDetailsScreen extends StatelessWidget {
       padding: const EdgeInsets.all(20.0),
       child: Column(
         children: [
-          // Botón Vista Previa
-          // Container(
-          //   width: double.infinity,
-          //   height: 50,
-          //   margin: const EdgeInsets.only(bottom: 12),
-          //   child: OutlinedButton.icon(
-          //     onPressed: () {
-          //       // TODO: Implementar vista previa
-          //       debugPrint('Vista previa de ejercicios');
-          //     },
-          //     icon: const Icon(
-          //       Icons.play_circle_outline,
-          //       color: AppTheme.accentColor,
-          //     ),
-          //     label: const Text(
-          //       'Vista Previa',
-          //       style: TextStyle(
-          //         color: AppTheme.accentColor,
-          //         fontSize: 16,
-          //         fontWeight: FontWeight.w600,
-          //       ),
-          //     ),
-          //     style: OutlinedButton.styleFrom(
-          //       side: const BorderSide(color: AppTheme.accentColor),
-          //       shape: RoundedRectangleBorder(
-          //         borderRadius: BorderRadius.circular(25),
-          //       ),
-          //     ),
-          //   ),
-          // ),
+          // Botón Personalizar Rutina
+          Container(
+            width: double.infinity,
+            height: 50,
+            margin: const EdgeInsets.only(bottom: 12),
+            child: OutlinedButton.icon(
+              onPressed: () => _navigateToEditRoutine(context),
+              icon: const Icon(Icons.edit, color: AppTheme.accentColor),
+              label: const Text(
+                'Personalizar Rutina',
+                style: TextStyle(
+                  color: AppTheme.accentColor,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppTheme.accentColor),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(25),
+                ),
+              ),
+            ),
+          ),
 
           // Botón Comenzar Rutina
           Container(
@@ -368,8 +395,18 @@ class RoutineDetailsScreen extends StatelessWidget {
             ),
             child: ElevatedButton.icon(
               onPressed: () {
-                // TODO: Ir a pantalla de ejecución de rutina
-                debugPrint('Comenzar rutina: $routineName');
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder:
+                        (context) => RoutineExecutionScreen(
+                          routineName: currentRoutine.name,
+                          level: currentRoutine.level,
+                          exercises: _convertExercisesToMap(),
+                        ),
+                  ),
+                );
+                debugPrint('Comenzar rutina: ${currentRoutine.name}');
               },
               icon: const Icon(Icons.play_arrow, color: Colors.white, size: 24),
               label: const Text(
@@ -394,9 +431,121 @@ class RoutineDetailsScreen extends StatelessWidget {
     );
   }
 
-  // Métodos para obtener información personalizada según el nivel
+  Widget _buildExerciseCardFromModel(Exercise exercise) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.cardColor.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppTheme.accentColor.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  _getIconFromName(exercise.iconName),
+                  color: AppTheme.accentColor,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      exercise.name,
+                      style: const TextStyle(
+                        color: AppTheme.iconColor,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      exercise.target,
+                      style: TextStyle(
+                        color: AppTheme.textColor.withOpacity(0.8),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _getDifficultyColor(
+                    exercise.difficulty,
+                  ).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  exercise.difficulty,
+                  style: TextStyle(
+                    color: _getDifficultyColor(exercise.difficulty),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _buildExerciseDetail(Icons.repeat, exercise.sets),
+              const SizedBox(width: 16),
+              _buildExerciseDetail(Icons.timer, exercise.rest),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _getIconFromName(String iconName) {
+    switch (iconName) {
+      case 'fitness_center':
+        return Icons.fitness_center;
+      case 'directions_run':
+        return Icons.directions_run;
+      case 'straighten':
+        return Icons.straighten;
+      case 'accessibility_new':
+        return Icons.accessibility_new;
+      default:
+        return Icons.fitness_center;
+    }
+  }
+
+  List<Map<String, dynamic>> _convertExercisesToMap() {
+    return currentRoutine.exercises.map((exercise) {
+      return {
+        'name': exercise.name,
+        'target': exercise.target,
+        'sets': exercise.sets,
+        'rest': exercise.rest,
+        'difficulty': exercise.difficulty,
+        'icon': _getIconFromName(exercise.iconName),
+      };
+    }).toList();
+  }
+
+  // Métodos para obtener información personalizada según el nivel (fallback)
   String _getDuration() {
-    switch (level.toLowerCase()) {
+    switch (widget.level.toLowerCase()) {
       case 'principiante':
         return '30-45 minutos';
       case 'intermedio':
@@ -409,7 +558,7 @@ class RoutineDetailsScreen extends StatelessWidget {
   }
 
   String _getFrequency() {
-    switch (level.toLowerCase()) {
+    switch (widget.level.toLowerCase()) {
       case 'principiante':
         return '2-3 veces por semana';
       case 'intermedio':
@@ -422,7 +571,7 @@ class RoutineDetailsScreen extends StatelessWidget {
   }
 
   String _getEquipment() {
-    switch (level.toLowerCase()) {
+    switch (widget.level.toLowerCase()) {
       case 'principiante':
         return 'Peso corporal, mancuernas ligeras';
       case 'intermedio':
@@ -435,7 +584,7 @@ class RoutineDetailsScreen extends StatelessWidget {
   }
 
   List<String> _getBenefits() {
-    switch (level.toLowerCase()) {
+    switch (widget.level.toLowerCase()) {
       case 'principiante':
         return [
           'Introducción al ejercicio',
@@ -461,7 +610,7 @@ class RoutineDetailsScreen extends StatelessWidget {
 
   List<Map<String, dynamic>> _getExercises() {
     // Ejercicios personalizados según el nivel
-    switch (level.toLowerCase()) {
+    switch (widget.level.toLowerCase()) {
       case 'principiante':
         return [
           {
