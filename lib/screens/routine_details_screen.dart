@@ -1,5 +1,6 @@
-// screens/routine_details_screen.dart
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:gymsgg_app/screens/edit_exercise_screen.dart';
 import 'package:gymsgg_app/screens/edit_routine_screen.dart';
 import 'package:gymsgg_app/screens/routine_execution_screen.dart';
 import 'package:gymsgg_app/models/routine_model.dart';
@@ -8,17 +9,19 @@ import 'package:gymsgg_app/theme/app_theme.dart';
 class RoutineDetailsScreen extends StatefulWidget {
   static const String routeName = '/routine-details';
 
+  final String routineId;
   final String routineName;
   final String level;
   final String difficulty;
 
   const RoutineDetailsScreen({
     super.key,
+    String? routineId,
     required this.routineName,
     required this.level,
     required this.difficulty,
     required String fitnessLevel,
-  });
+  }) : routineId = routineId ?? '';
 
   @override
   State<RoutineDetailsScreen> createState() => _RoutineDetailsScreenState();
@@ -26,47 +29,165 @@ class RoutineDetailsScreen extends StatefulWidget {
 
 class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
   late Routine currentRoutine;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _initializeRoutine();
+    _loadRoutine();
   }
 
-  void _initializeRoutine() {
+  Future<void> _loadRoutine() async {
+    try {
+      // Verificar si el routineId es válido
+      if (widget.routineId.isEmpty) {
+        print('RoutineId está vacío, inicializando nueva rutina');
+        _initializeNewRoutine();
+        return;
+      }
+
+      DocumentSnapshot doc =
+          await _firestore.collection('routines').doc(widget.routineId).get();
+
+      if (doc.exists) {
+        setState(() {
+          currentRoutine = Routine.fromFirestore(doc);
+          _isLoading = false;
+        });
+      } else {
+        print('Documento no existe para ID: ${widget.routineId}');
+        // Si no existe, creamos una nueva con datos básicos
+        _initializeNewRoutine();
+      }
+    } catch (e) {
+      print('Error loading routine: $e');
+      print('RoutineId recibido: "${widget.routineId}"');
+      _initializeNewRoutine();
+    }
+  }
+
+  void _initializeNewRoutine() {
     final exercisesList = _getExercises();
-    currentRoutine = Routine(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: widget.routineName,
-      level: widget.level,
-      difficulty: widget.difficulty,
-      duration: _getDuration(),
-      frequency: _getFrequency(),
-      equipment: _getEquipment(),
-      benefits: _getBenefits(),
-      exercises:
-          exercisesList.map((exerciseMap) {
-            return Exercise(
-              id:
-                  DateTime.now().millisecondsSinceEpoch.toString() +
-                  exerciseMap['name'].hashCode.toString(),
-              name: exerciseMap['name'],
-              target: exerciseMap['target'],
-              sets: exerciseMap['sets'],
-              rest: exerciseMap['rest'],
-              difficulty: exerciseMap['difficulty'],
-              iconName: _getIconName(exerciseMap['icon']),
-              order: exercisesList.indexOf(exerciseMap),
-            );
-          }).toList(),
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-      userId: "",
-    );
+
+    // Generar un ID válido si está vacío
+    String validRoutineId =
+        widget.routineId.isNotEmpty
+            ? widget.routineId
+            : DateTime.now().millisecondsSinceEpoch.toString();
+
+    setState(() {
+      currentRoutine = Routine(
+        id: validRoutineId,
+        name:
+            widget.routineName.isNotEmpty ? widget.routineName : 'Nueva rutina',
+        level: widget.level.isNotEmpty ? widget.level : 'Principiante',
+        difficulty: widget.difficulty.isNotEmpty ? widget.difficulty : 'Media',
+        duration: _getDuration(),
+        frequency: _getFrequency(),
+        equipment: _getEquipment(),
+        benefits: _getBenefits(),
+        exercises:
+            exercisesList
+                .map(
+                  (exerciseMap) => Exercise(
+                    id:
+                        DateTime.now().millisecondsSinceEpoch.toString() +
+                        exerciseMap['name'].hashCode.toString(),
+                    name: exerciseMap['name'],
+                    target: exerciseMap['target'],
+                    sets: exerciseMap['sets'],
+                    rest: exerciseMap['rest'],
+                    difficulty: exerciseMap['difficulty'],
+                    iconName: _getIconName(exerciseMap['icon']),
+                    order: exercisesList.indexOf(exerciseMap),
+                  ),
+                )
+                .toList(),
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        userId: "", // Se deberá asignar cuando se guarde
+      );
+      _isLoading = false;
+    });
+
+    print('Rutina inicializada con ID: $validRoutineId');
+  }
+
+  Future<void> _saveRoutineToFirebase() async {
+    try {
+      setState(() => _isLoading = true);
+      await _firestore
+          .collection('routines')
+          .doc(currentRoutine.id)
+          .set(currentRoutine.toFirestore());
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Rutina guardada correctamente'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Error al guardar: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _saveExerciseChanges(Exercise exercise, bool isNew) async {
+    try {
+      setState(() => _isLoading = true);
+
+      if (isNew) {
+        currentRoutine.exercises.add(exercise);
+      } else {
+        // Encontrar y reemplazar el ejercicio existente
+        final index = currentRoutine.exercises.indexWhere(
+          (e) => e.id == exercise.id,
+        );
+        if (index != -1) {
+          currentRoutine.exercises[index] = exercise;
+        }
+      }
+
+      await _saveRoutineToFirebase();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Error al guardar ejercicio: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteExerciseFromFirebase(Exercise exercise) async {
+    try {
+      setState(() => _isLoading = true);
+      currentRoutine.exercises.remove(exercise);
+      await _saveRoutineToFirebase();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Error al eliminar ejercicio: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     return Container(
       decoration: AppTheme.foundColor,
       child: Scaffold(
@@ -114,7 +235,7 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  currentRoutine.name, // Cambio aquí: usar currentRoutine.name
+                  currentRoutine.name,
                   style: const TextStyle(
                     color: AppTheme.iconColor,
                     fontSize: 24,
@@ -122,7 +243,7 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
                   ),
                 ),
                 Text(
-                  'Nivel ${currentRoutine.level} • ${currentRoutine.difficulty}', // Cambio aquí también
+                  'Nivel ${currentRoutine.level} • ${currentRoutine.difficulty}',
                   style: TextStyle(
                     color: AppTheme.textColor.withOpacity(0.8),
                     fontSize: 16,
@@ -134,48 +255,6 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
         ],
       ),
     );
-  }
-
-  void _navigateToEditRoutine(BuildContext context) async {
-    // Cambio aquí: hacer la navegación async y esperar el resultado
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder:
-            (context) =>
-                EditRoutineScreen(routine: currentRoutine, isNewRoutine: false),
-      ),
-    );
-
-    // Si se editó la rutina, actualizar el estado
-    if (result != null && result is Routine) {
-      setState(() {
-        currentRoutine = result;
-      });
-
-      // Mostrar confirmación
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('✅ Rutina personalizada guardada'),
-            backgroundColor: AppTheme.accentColor,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        );
-      }
-    }
-  }
-
-  String _getIconName(IconData icon) {
-    // Mapear IconData a String para la compatibilidad con el modelo
-    if (icon == Icons.fitness_center) return 'fitness_center';
-    if (icon == Icons.directions_run) return 'directions_run';
-    if (icon == Icons.straighten) return 'straighten';
-    if (icon == Icons.accessibility_new) return 'accessibility_new';
-    return 'fitness_center'; // default
   }
 
   Widget _buildRoutineInfo() {
@@ -232,7 +311,6 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
             ),
             const SizedBox(height: 8),
             ...currentRoutine.benefits.map(
-              // Cambio aquí: usar currentRoutine.benefits directamente
               (benefit) => Padding(
                 padding: const EdgeInsets.only(bottom: 8.0),
                 child: _buildBenefitChip(benefit),
@@ -241,6 +319,258 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildExercisesList() {
+    return Padding(
+      padding: const EdgeInsets.all(20.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Ejercicios incluidos',
+                style: TextStyle(
+                  color: AppTheme.accentColor,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Row(
+                children: [
+                  Text(
+                    '${currentRoutine.exercises.length} ejercicios',
+                    style: TextStyle(
+                      color: AppTheme.textColor.withOpacity(0.8),
+                      fontSize: 14,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.add, color: AppTheme.accentColor),
+                    onPressed: _addNewExercise,
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ReorderableListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: currentRoutine.exercises.length,
+            onReorder: (oldIndex, newIndex) {
+              setState(() {
+                if (oldIndex < newIndex) {
+                  newIndex -= 1;
+                }
+                final Exercise item = currentRoutine.exercises.removeAt(
+                  oldIndex,
+                );
+                currentRoutine.exercises.insert(newIndex, item);
+                // Actualizar el orden de todos los ejercicios
+                for (var i = 0; i < currentRoutine.exercises.length; i++) {
+                  currentRoutine.exercises[i] = currentRoutine.exercises[i]
+                      .copyWith(order: i);
+                }
+              });
+              _saveRoutineToFirebase(); // Guardar cambios en Firebase
+            },
+            itemBuilder: (context, index) {
+              final exercise = currentRoutine.exercises[index];
+              return _buildExerciseCardFromModel(exercise, index);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExerciseCardFromModel(Exercise exercise, int index) {
+    return Container(
+      key: Key(exercise.id),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.cardColor.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppTheme.accentColor.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              ReorderableDragStartListener(
+                index: index,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.accentColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.drag_handle,
+                    color: AppTheme.accentColor,
+                    size: 20,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  _getIconFromName(exercise.iconName),
+                  color: AppTheme.accentColor,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      exercise.name,
+                      style: const TextStyle(
+                        color: AppTheme.iconColor,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      exercise.target,
+                      style: TextStyle(
+                        color: AppTheme.textColor.withOpacity(0.8),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _getDifficultyColor(
+                    exercise.difficulty,
+                  ).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  exercise.difficulty,
+                  style: TextStyle(
+                    color: _getDifficultyColor(exercise.difficulty),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.edit, size: 20),
+                color: AppTheme.accentColor,
+                onPressed: () => _editExercise(exercise),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete, size: 20),
+                color: Colors.red,
+                onPressed: () => _deleteExercise(exercise),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _buildExerciseDetail(Icons.repeat, exercise.sets),
+              const SizedBox(width: 16),
+              _buildExerciseDetail(Icons.timer, exercise.rest),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _addNewExercise() async {
+    final newExercise = Exercise(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: 'Nuevo ejercicio',
+      target: 'Grupo muscular',
+      sets: '3 series x 10 reps',
+      rest: '60 seg',
+      difficulty: 'Medio',
+      iconName: 'fitness_center',
+      order: currentRoutine.exercises.length,
+    );
+
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) =>
+                EditExerciseScreen(exercise: newExercise, isNewExercise: true),
+      ),
+    );
+
+    if (result != null && result is Exercise) {
+      await _saveExerciseChanges(result, true);
+    }
+  }
+
+  void _editExercise(Exercise exercise) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) =>
+                EditExerciseScreen(exercise: exercise, isNewExercise: false),
+      ),
+    );
+
+    if (result != null && result is Exercise) {
+      await _saveExerciseChanges(result, false);
+    }
+  }
+
+  void _deleteExercise(Exercise exercise) {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: AppTheme.cardColor,
+            title: const Text(
+              'Eliminar ejercicio',
+              style: TextStyle(color: AppTheme.iconColor),
+            ),
+            content: Text(
+              '¿Estás seguro de que quieres eliminar "${exercise.name}"?',
+              style: const TextStyle(color: AppTheme.textColor),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancelar'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _deleteExerciseFromFirebase(exercise);
+                },
+                child: const Text(
+                  'Eliminar',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          ),
     );
   }
 
@@ -284,43 +614,6 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
           style: const TextStyle(color: AppTheme.textColor, fontSize: 14),
         ),
       ],
-    );
-  }
-
-  Widget _buildExercisesList() {
-    final exercises =
-        currentRoutine
-            .exercises; // Cambio aquí: usar currentRoutine.exercises directamente
-
-    return Padding(
-      padding: const EdgeInsets.all(20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Ejercicios incluidos',
-                style: TextStyle(
-                  color: AppTheme.accentColor,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                '${exercises.length} ejercicios',
-                style: TextStyle(
-                  color: AppTheme.textColor.withOpacity(0.8),
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          ...exercises.map((exercise) => _buildExerciseCardFromModel(exercise)),
-        ],
-      ),
     );
   }
 
@@ -406,7 +699,6 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
                         ),
                   ),
                 );
-                debugPrint('Comenzar rutina: ${currentRoutine.name}');
               },
               icon: const Icon(Icons.play_arrow, color: Colors.white, size: 24),
               label: const Text(
@@ -431,88 +723,22 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
     );
   }
 
-  Widget _buildExerciseCardFromModel(Exercise exercise) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.cardColor.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppTheme.accentColor.withOpacity(0.2),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppTheme.accentColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  _getIconFromName(exercise.iconName),
-                  color: AppTheme.accentColor,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      exercise.name,
-                      style: const TextStyle(
-                        color: AppTheme.iconColor,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      exercise.target,
-                      style: TextStyle(
-                        color: AppTheme.textColor.withOpacity(0.8),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _getDifficultyColor(
-                    exercise.difficulty,
-                  ).withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  exercise.difficulty,
-                  style: TextStyle(
-                    color: _getDifficultyColor(exercise.difficulty),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _buildExerciseDetail(Icons.repeat, exercise.sets),
-              const SizedBox(width: 16),
-              _buildExerciseDetail(Icons.timer, exercise.rest),
-            ],
-          ),
-        ],
+  void _navigateToEditRoutine(BuildContext context) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) =>
+                EditRoutineScreen(routine: currentRoutine, isNewRoutine: false),
       ),
     );
+
+    if (result != null && result is Routine) {
+      setState(() {
+        currentRoutine = result;
+      });
+      await _saveRoutineToFirebase();
+    }
   }
 
   IconData _getIconFromName(String iconName) {
@@ -530,6 +756,14 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
     }
   }
 
+  String _getIconName(IconData icon) {
+    if (icon == Icons.fitness_center) return 'fitness_center';
+    if (icon == Icons.directions_run) return 'directions_run';
+    if (icon == Icons.straighten) return 'straighten';
+    if (icon == Icons.accessibility_new) return 'accessibility_new';
+    return 'fitness_center';
+  }
+
   List<Map<String, dynamic>> _convertExercisesToMap() {
     return currentRoutine.exercises.map((exercise) {
       return {
@@ -543,14 +777,17 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
     }).toList();
   }
 
-  // Métodos para obtener información personalizada según el nivel (fallback)
+  // Métodos para obtener información personalizada según el nivel
   String _getDuration() {
     switch (widget.level.toLowerCase()) {
       case 'principiante':
+      case 'beginner':
         return '30-45 minutos';
       case 'intermedio':
+      case 'intermediate':
         return '45-60 minutos';
       case 'avanzado':
+      case 'advanced':
         return '60-90 minutos';
       default:
         return '45-60 minutos';
@@ -560,10 +797,13 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
   String _getFrequency() {
     switch (widget.level.toLowerCase()) {
       case 'principiante':
+      case 'beginner':
         return '2-3 veces por semana';
       case 'intermedio':
+      case 'intermediate':
         return '3-4 veces por semana';
       case 'avanzado':
+      case 'advanced':
         return '4-5 veces por semana';
       default:
         return '3-4 veces por semana';
@@ -573,10 +813,13 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
   String _getEquipment() {
     switch (widget.level.toLowerCase()) {
       case 'principiante':
+      case 'beginner':
         return 'Peso corporal, mancuernas ligeras';
       case 'intermedio':
+      case 'intermediate':
         return 'Mancuernas, banco, barras';
       case 'avanzado':
+      case 'advanced':
         return 'Equipamiento completo de gimnasio';
       default:
         return 'Mancuernas, banco';
@@ -586,18 +829,21 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
   List<String> _getBenefits() {
     switch (widget.level.toLowerCase()) {
       case 'principiante':
+      case 'beginner':
         return [
           'Introducción al ejercicio',
           'Construcción de hábitos',
           'Fortalecimiento básico',
         ];
       case 'intermedio':
+      case 'intermediate':
         return [
           'Fortalecimiento muscular',
           'Mejora de la resistencia',
           'Tonificación corporal',
         ];
       case 'avanzado':
+      case 'advanced':
         return ['Hipertrofia muscular', 'Fuerza máxima', 'Definición avanzada'];
       default:
         return [
@@ -609,9 +855,9 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
   }
 
   List<Map<String, dynamic>> _getExercises() {
-    // Ejercicios personalizados según el nivel
     switch (widget.level.toLowerCase()) {
       case 'principiante':
+      case 'beginner':
         return [
           {
             'name': 'Sentadillas básicas',
@@ -639,6 +885,7 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
           },
         ];
       case 'avanzado':
+      case 'advanced':
         return [
           {
             'name': 'Sentadillas con peso',
@@ -676,7 +923,7 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
             'icon': Icons.fitness_center,
           },
           {
-            'name': 'Bulgárias',
+            'name': 'Búlgaras',
             'target': 'Cuádriceps, glúteos',
             'sets': '3 series x 10-12 reps',
             'rest': '60 seg',

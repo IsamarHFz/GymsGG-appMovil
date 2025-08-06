@@ -389,6 +389,7 @@ class _RoutineSelectionScreenState extends State<RoutineSelectionScreen> {
                     level: '',
                     difficulty: '',
                     fitnessLevel: '',
+                    routineId: '',
                   ),
             ),
           );
