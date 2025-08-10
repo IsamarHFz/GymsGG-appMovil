@@ -5,11 +5,29 @@ import 'dart:io';
 
 // Importaciones de Firebase
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
+
+// Importar servicios
+import 'services/auth_service.dart';
+import 'services/user_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Inicializar Firebase
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // IMPORTANTE: Habilitar persistencia offline de Firestore
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+  );
+
+  // Inicializar servicios de autenticación
+  await AuthService.initialize();
+  await UserService.initialize();
+
   runApp(const MyApp());
 }
 

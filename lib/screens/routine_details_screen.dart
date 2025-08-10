@@ -4,6 +4,7 @@ import 'package:gymsgg_app/screens/edit_exercise_screen.dart';
 import 'package:gymsgg_app/screens/edit_routine_screen.dart';
 import 'package:gymsgg_app/screens/routine_execution_screen.dart';
 import 'package:gymsgg_app/models/routine_model.dart';
+import 'package:gymsgg_app/services/user_service.dart';
 import 'package:gymsgg_app/theme/app_theme.dart';
 
 class RoutineDetailsScreen extends StatefulWidget {
@@ -31,10 +32,12 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
   late Routine currentRoutine;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   bool _isLoading = true;
+  bool _isSaving = false; // ✅ NUEVO: Indicador de guardado
 
   @override
   void initState() {
     super.initState();
+    _checkAuthentication();
     _loadRoutine();
   }
 
@@ -111,40 +114,125 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
       _isLoading = false;
     });
 
+    // ✅ NUEVO: Guardar automáticamente la nueva rutina
+    _saveRoutineToFirebase();
+
     print('Rutina inicializada con ID: $validRoutineId');
   }
 
+  // ✅ MÉTODO MEJORADO con mejor UI feedback
   Future<void> _saveRoutineToFirebase() async {
-    try {
-      setState(() => _isLoading = true);
-      await _firestore
-          .collection('routines')
-          .doc(currentRoutine.id)
-          .set(currentRoutine.toFirestore());
+    if (_isSaving) return; // Evitar guardados múltiples simultáneos
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Rutina guardada correctamente'),
-          backgroundColor: Colors.green,
-        ),
-      );
+    try {
+      setState(() => _isSaving = true);
+
+      // Actualizar timestamp
+      currentRoutine = currentRoutine.copyWith(updatedAt: DateTime.now());
+
+      bool success = await UserService.saveUserRoutine(currentRoutine);
+
+      if (success && mounted) {
+        // ✅ Mostrar indicador sutil de guardado exitoso
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: const [
+                Icon(Icons.check_circle, color: Colors.white, size: 18),
+                SizedBox(width: 8),
+                Text('Guardado automáticamente'),
+              ],
+            ),
+            backgroundColor: Colors.green.withOpacity(0.9),
+            duration: const Duration(seconds: 1),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Error: Usuario no logueado'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ Error al guardar: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Error al guardar: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
   }
 
+  // Agregar método para verificar autenticación
+  void _checkAuthentication() {
+    if (!UserService.isLoggedIn) {
+      // Redirigir a login si no hay usuario
+      Navigator.pushReplacementNamed(context, '/login');
+      return;
+    }
+  }
+
+  // ✅ MÉTODO MEJORADO con reordenamiento automático y guardado
+  Future<void> _deleteExerciseFromFirebase(Exercise exercise) async {
+    try {
+      setState(() => _isLoading = true);
+
+      // Remover el ejercicio
+      currentRoutine.exercises.removeWhere((e) => e.id == exercise.id);
+
+      // ✅ Reordenar los índices de los ejercicios restantes
+      for (var i = 0; i < currentRoutine.exercises.length; i++) {
+        currentRoutine.exercises[i] = currentRoutine.exercises[i].copyWith(
+          order: i,
+        );
+      }
+
+      // ✅ Guardar inmediatamente
+      await _saveRoutineToFirebase();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Ejercicio eliminado correctamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Error al eliminar ejercicio: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  // ✅ MÉTODO MEJORADO con guardado automático
   Future<void> _saveExerciseChanges(Exercise exercise, bool isNew) async {
     try {
       setState(() => _isLoading = true);
 
       if (isNew) {
+        // ✅ Asignar orden correcto al nuevo ejercicio
+        exercise = exercise.copyWith(order: currentRoutine.exercises.length);
         currentRoutine.exercises.add(exercise);
       } else {
         // Encontrar y reemplazar el ejercicio existente
@@ -156,29 +244,21 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
         }
       }
 
+      // ✅ Guardar automáticamente
       await _saveRoutineToFirebase();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ Error al guardar ejercicio: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  Future<void> _deleteExerciseFromFirebase(Exercise exercise) async {
-    try {
-      setState(() => _isLoading = true);
-      currentRoutine.exercises.remove(exercise);
-      await _saveRoutineToFirebase();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ Error al eliminar ejercicio: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Error al guardar ejercicio: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -216,6 +296,7 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
     );
   }
 
+  // ✅ HEADER MEJORADO con indicador de guardado
   Widget _buildHeader(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(20.0),
@@ -234,13 +315,55 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  currentRoutine.name,
-                  style: const TextStyle(
-                    color: AppTheme.iconColor,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        currentRoutine.name,
+                        style: const TextStyle(
+                          color: AppTheme.iconColor,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    // ✅ NUEVO: Indicador de estado de guardado
+                    if (_isSaving)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation(
+                                  Colors.orange,
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'Guardando...',
+                              style: TextStyle(
+                                color: Colors.orange,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
                 ),
                 Text(
                   'Nivel ${currentRoutine.level} • ${currentRoutine.difficulty}',
@@ -361,7 +484,8 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: currentRoutine.exercises.length,
-            onReorder: (oldIndex, newIndex) {
+            // ✅ MEJORADO: Guardado automático al reordenar
+            onReorder: (oldIndex, newIndex) async {
               setState(() {
                 if (oldIndex < newIndex) {
                   newIndex -= 1;
@@ -376,7 +500,8 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
                       .copyWith(order: i);
                 }
               });
-              _saveRoutineToFirebase(); // Guardar cambios en Firebase
+              // ✅ Guardar inmediatamente en Firebase
+              await _saveRoutineToFirebase();
             },
             itemBuilder: (context, index) {
               final exercise = currentRoutine.exercises[index];
@@ -723,6 +848,7 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
     );
   }
 
+  // ✅ MÉTODO MEJORADO con guardado automático
   void _navigateToEditRoutine(BuildContext context) async {
     final result = await Navigator.push(
       context,
@@ -737,6 +863,7 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
       setState(() {
         currentRoutine = result;
       });
+      // ✅ Guardar automáticamente los cambios de la rutina
       await _saveRoutineToFirebase();
     }
   }
