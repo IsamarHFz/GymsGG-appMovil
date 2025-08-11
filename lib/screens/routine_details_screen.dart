@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:gymsgg_app/screens/edit_exercise_screen.dart';
 import 'package:gymsgg_app/screens/edit_routine_screen.dart';
+import 'package:gymsgg_app/screens/profile_screen.dart';
 import 'package:gymsgg_app/screens/routine_execution_screen.dart';
 import 'package:gymsgg_app/models/routine_model.dart';
 import 'package:gymsgg_app/services/user_service.dart';
@@ -296,12 +297,29 @@ class _RoutineDetailsScreenState extends State<RoutineDetailsScreen> {
     );
   }
 
-  // ✅ HEADER MEJORADO con indicador de guardado
   Widget _buildHeader(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(20.0),
       child: Row(
         children: [
+          // Botón para ir al menú principal
+          IconButton(
+            icon: const Icon(
+              Icons.person_2,
+              color: AppTheme.iconColor,
+              size: 24,
+            ),
+            onPressed:
+                () => Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ProfileScreen(),
+                  ),
+                  (route) => false,
+                ),
+          ),
+          const SizedBox(width: 8),
+          // Botón de volver
           IconButton(
             onPressed: () => Navigator.pop(context),
             icon: const Icon(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gymsgg_app/screens/routine_list_screen.dart';
 import 'screens/home_screen.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'dart:io';
@@ -11,6 +12,12 @@ import 'firebase_options.dart';
 // Importar servicios
 import 'services/auth_service.dart';
 import 'services/user_service.dart';
+
+// ✅ NUEVOS IMPORTS - Agrega las pantallas que necesitas
+import 'screens/profile_screen.dart';
+import 'screens/login_screen.dart';
+import 'screens/routine_details_screen.dart';
+import 'screens/history_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,7 +51,63 @@ class MyApp extends StatelessWidget {
         fontFamily: 'Roboto',
         useMaterial3: true,
       ),
+      // ✅ Pantalla inicial
       home: const ResponsiveHomeWrapper(),
+
+      // ✅ TODAS LAS RUTAS NECESARIAS
+      routes: {
+        '/profile': (context) => const ProfileScreen(),
+        '/login': (context) => const LoginScreen(),
+        '/routines-list': (context) => const RoutinesListScreen(),
+        '/history': (context) => const HistoryScreen(),
+      },
+
+      // ✅ MANEJO DE RUTAS DINÁMICAS (para routine-details con parámetros)
+      onGenerateRoute: (RouteSettings settings) {
+        switch (settings.name) {
+          case '/routine-details':
+            // Manejo de parámetros para RoutineDetailsScreen
+            final args = settings.arguments as Map<String, dynamic>?;
+            return MaterialPageRoute(
+              builder:
+                  (context) => RoutineDetailsScreen(
+                    routineId: args?['routineId'] ?? '',
+                    routineName: args?['routineName'] ?? 'Nueva rutina',
+                    level: args?['level'] ?? 'beginner',
+                    difficulty: args?['difficulty'] ?? 'medium',
+                    fitnessLevel: args?['fitnessLevel'] ?? 'beginner',
+                  ),
+            );
+          default:
+            // Ruta por defecto para rutas no encontradas
+            return MaterialPageRoute(
+              builder:
+                  (context) => Scaffold(
+                    appBar: AppBar(
+                      title: const Text('Página no encontrada'),
+                      backgroundColor: Colors.amber,
+                    ),
+                    body: const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 64,
+                            color: Colors.grey,
+                          ),
+                          SizedBox(height: 16),
+                          Text(
+                            'La página solicitada no existe',
+                            style: TextStyle(fontSize: 18),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+            );
+        }
+      },
     );
   }
 }
@@ -119,6 +182,7 @@ class WearHomeScreen extends StatelessWidget {
                 icon: Icons.play_arrow,
                 label: 'Iniciar',
                 size: size,
+                onTap: () => Navigator.pushNamed(context, '/menu'),
               ),
               SizedBox(height: size.height * 0.02),
               _buildWearButton(
@@ -126,6 +190,7 @@ class WearHomeScreen extends StatelessWidget {
                 icon: Icons.history,
                 label: 'Historial',
                 size: size,
+                onTap: () => Navigator.pushNamed(context, '/history'),
               ),
             ],
           ),
@@ -139,12 +204,13 @@ class WearHomeScreen extends StatelessWidget {
     required IconData icon,
     required String label,
     required Size size,
+    required VoidCallback onTap, // ✅ Agregado callback
   }) {
     return SizedBox(
       width: size.width * 0.8,
       height: size.height * 0.12,
       child: ElevatedButton(
-        onPressed: () {},
+        onPressed: onTap, // ✅ Usar el callback
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.amber.withOpacity(0.2),
           foregroundColor: Colors.amber,
