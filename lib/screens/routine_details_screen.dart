@@ -23,6 +23,7 @@ class RoutineDetailsScreen extends StatefulWidget {
     required this.level,
     required this.difficulty,
     required String fitnessLevel,
+    required routine,
   }) : routineId = routineId ?? '';
 
   @override

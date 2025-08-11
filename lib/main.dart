@@ -76,6 +76,7 @@ class MyApp extends StatelessWidget {
                     level: args?['level'] ?? 'beginner',
                     difficulty: args?['difficulty'] ?? 'medium',
                     fitnessLevel: args?['fitnessLevel'] ?? 'beginner',
+                    routine: null,
                   ),
             );
           default:

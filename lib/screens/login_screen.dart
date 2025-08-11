@@ -1,5 +1,9 @@
+// login_screen.dart - Corregido para flujo completo de onboarding
 import 'package:flutter/material.dart';
 import 'package:gymsgg_app/screens/fitness_level_screen.dart';
+import 'package:gymsgg_app/screens/profile_screen.dart';
+import 'package:gymsgg_app/screens/routine_selection_screen.dart';
+import 'package:gymsgg_app/screens/routine_details_screen.dart';
 import 'package:gymsgg_app/screens/sign_up_screen.dart';
 import 'package:gymsgg_app/theme/app_theme.dart';
 import 'package:gymsgg_app/services/firebase_service.dart';
@@ -249,14 +253,11 @@ class _LoginScreenState extends State<LoginScreen> {
       return 'El email o usuario es requerido';
     }
 
-    // Verificar si es un email o un username
     if (value.contains('@')) {
-      // Es un email - validación básica
       if (!_isValidEmail(value)) {
         return 'Formato de email inválido';
       }
     } else {
-      // Es un username - validación básica
       if (!_isValidUsername(value)) {
         return 'Usuario inválido (min. 3 caracteres, solo letras, números y _)';
       }
@@ -274,7 +275,6 @@ class _LoginScreenState extends State<LoginScreen> {
     return null;
   }
 
-  // Métodos de validación auxiliares
   bool _isValidEmail(String email) {
     return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
   }
@@ -284,7 +284,7 @@ class _LoginScreenState extends State<LoginScreen> {
         RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(username);
   }
 
-  // Manejar el login
+  // ✅ MÉTODO MEJORADO - Navegación inteligente según el estado del perfil
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -295,7 +295,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final result = await FirebaseService.signInUser(
+      final result = await FirebaseService.signInUserWithProfile(
         emailOrUsername: emailController.text.trim(),
         password: passwordController.text,
       );
@@ -305,14 +305,75 @@ class _LoginScreenState extends State<LoginScreen> {
       if (result['success']) {
         _showSuccessMessage(result['message']);
 
-        // Navegar a la pantalla principal después de un breve delay
+        // Breve delay para mostrar el mensaje
         await Future.delayed(const Duration(seconds: 1));
+
         if (mounted) {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (context) => const FitnessLevelScreen()),
-            (route) => false,
-          );
+          // ✅ LÓGICA MEJORADA: Navegación según el estado detallado del perfil
+          final hasCompleteProfile = result['hasCompleteProfile'] ?? false;
+          final onboardingStep = result['onboardingStep'] ?? 'fitness_level';
+          final fitnessLevel = result['fitnessLevel'];
+          final selectedRoutineId = result['selectedRoutineId'];
+
+          print('🎯 Estado del login:');
+          print('   - hasCompleteProfile: $hasCompleteProfile');
+          print('   - onboardingStep: $onboardingStep');
+          print('   - fitnessLevel: $fitnessLevel');
+          print('   - selectedRoutineId: $selectedRoutineId');
+
+          if (hasCompleteProfile) {
+            // ✅ Usuario con perfil completo → ProfileScreen
+            print('✅ Usuario con perfil completo → ProfileScreen');
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const ProfileScreen()),
+              (route) => false,
+            );
+          } else {
+            // ✅ Usuario incompleto → Determinar siguiente paso
+            switch (onboardingStep) {
+              case 'fitness_level':
+                print('⚠️ Usuario nuevo → FitnessLevelScreen');
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const FitnessLevelScreen(),
+                  ),
+                  (route) => false,
+                );
+                break;
+
+              case 'routine_selection':
+                print(
+                  '⚠️ Usuario con nivel pero sin rutina → RoutineSelectionScreen',
+                );
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder:
+                        (context) => RoutineSelectionScreen(
+                          selectedLevel: fitnessLevel ?? 'beginner',
+                          fitnessLevel: fitnessLevel ?? 'beginner',
+                        ),
+                  ),
+                  (route) => false,
+                );
+                break;
+
+              case 'completed':
+              default:
+                // Si por alguna razón llega aquí, ir al perfil
+                print('⚠️ Estado indefinido → ProfileScreen');
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ProfileScreen(),
+                  ),
+                  (route) => false,
+                );
+                break;
+            }
+          }
         }
       } else {
         _showErrorMessage(result['message']);
@@ -343,6 +404,7 @@ class _LoginScreenState extends State<LoginScreen> {
         backgroundColor: Colors.green,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        duration: const Duration(seconds: 2),
       ),
     );
   }

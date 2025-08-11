@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:gymsgg_app/screens/routine_details_screen.dart';
+import 'package:gymsgg_app/services/firebase_service.dart'; // ← AGREGAR IMPORT
 import 'package:gymsgg_app/theme/app_theme.dart';
 
 class RoutineSelectionScreen extends StatefulWidget {
   final String selectedLevel;
+  final String fitnessLevel; // ← Parámetro requerido agregado
 
-  const RoutineSelectionScreen({super.key, required this.selectedLevel});
+  const RoutineSelectionScreen({
+    super.key,
+    required this.selectedLevel,
+    required this.fitnessLevel,
+  });
 
   @override
   State<RoutineSelectionScreen> createState() => _RoutineSelectionScreenState();
@@ -13,33 +19,34 @@ class RoutineSelectionScreen extends StatefulWidget {
 
 class _RoutineSelectionScreenState extends State<RoutineSelectionScreen> {
   String selectedRoutine = '';
+  bool _isLoading = false; // ← AGREGAR ESTADO DE LOADING
 
-  // Rutinas personalizadas por nivel (sin ejercicios)
+  // Rutinas personalizadas por nivel
   Map<String, List<RoutineData>> get routinesByLevel => {
     'beginner': [
       RoutineData(
-        id: 'beginner_basic',
-        title: 'Pierna y gluteos',
+        id: 'beginner_legs_glutes',
+        title: 'Pierna y Glúteos',
         description: 'Ejercicios fundamentales\npara comenzar',
-        duration: '10 min cada rutina',
-        difficulty: 'Medio',
+        duration: '30-40 min',
+        difficulty: 'Fácil',
         icon: Icons.fitness_center,
       ),
       RoutineData(
-        id: 'beginner_cardio',
-        title: 'Espalda y brazo',
-        description: 'Activación cardiovascular\nbásica',
-        duration: '10-15 min',
-        difficulty: 'Muy Fácil',
-        icon: Icons.favorite,
+        id: 'beginner_back_arms',
+        title: 'Espalda y Brazos',
+        description: 'Fortalecimiento\nbásico superior',
+        duration: '25-35 min',
+        difficulty: 'Fácil',
+        icon: Icons.directions_run,
       ),
       RoutineData(
-        id: 'beginner_flexibility',
+        id: 'beginner_abs_cardio',
         title: 'Abdominales y Cardio',
-        description: 'Estiramientos y\nmobilidad articular',
-        duration: '12-18 min',
+        description: 'Core y activación\ncardiovascular',
+        duration: '20-30 min',
         difficulty: 'Fácil',
-        icon: Icons.self_improvement,
+        icon: Icons.favorite,
       ),
     ],
     'intermediate': [
@@ -47,24 +54,24 @@ class _RoutineSelectionScreenState extends State<RoutineSelectionScreen> {
         id: 'intermediate_strength',
         title: 'Fuerza Completa',
         description: 'Trabajo de fuerza\npara todo el cuerpo',
-        duration: '25-30 min',
-        difficulty: 'Moderado',
+        duration: '45-55 min',
+        difficulty: 'Medio',
         icon: Icons.fitness_center,
       ),
       RoutineData(
         id: 'intermediate_hiit',
         title: 'HIIT Intermedio',
         description: 'Intervalos de alta\nintensidad',
-        duration: '20-25 min',
-        difficulty: 'Intenso',
+        duration: '35-45 min',
+        difficulty: 'Medio',
         icon: Icons.whatshot,
       ),
       RoutineData(
         id: 'intermediate_core',
         title: 'Core Power',
         description: 'Fortalecimiento del\nnúcleo corporal',
-        duration: '18-22 min',
-        difficulty: 'Moderado',
+        duration: '30-40 min',
+        difficulty: 'Medio',
         icon: Icons.center_focus_strong,
       ),
     ],
@@ -73,24 +80,24 @@ class _RoutineSelectionScreenState extends State<RoutineSelectionScreen> {
         id: 'advanced_beast',
         title: 'Bestia Mode',
         description: 'Rutina extrema para\natletas avanzados',
-        duration: '35-45 min',
-        difficulty: 'Extremo',
+        duration: '60-75 min',
+        difficulty: 'Difícil',
         icon: Icons.flash_on,
       ),
       RoutineData(
         id: 'advanced_warrior',
         title: 'Warrior Training',
         description: 'Entrenamiento de\nguerrero funcional',
-        duration: '40-50 min',
-        difficulty: 'Máximo',
+        duration: '65-80 min',
+        difficulty: 'Difícil',
         icon: Icons.sports_martial_arts,
       ),
       RoutineData(
         id: 'advanced_endurance',
         title: 'Resistencia Elite',
         description: 'Máxima resistencia\ny condición física',
-        duration: '45-60 min',
-        difficulty: 'Elite',
+        duration: '70-90 min',
+        difficulty: 'Difícil',
         icon: Icons.timer,
       ),
     ],
@@ -127,27 +134,39 @@ class _RoutineSelectionScreenState extends State<RoutineSelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: AppTheme.foundColor,
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(32.0),
-            child: Column(
-              children: [
-                _buildHeader(),
-                const SizedBox(height: 30),
-                _buildLevelInfo(),
-                const SizedBox(height: 30),
-                _buildRoutineOptions(),
-                const SizedBox(height: 40),
-                if (selectedRoutine.isNotEmpty) _buildStartButton(),
-              ],
+    return Stack(
+      children: [
+        Container(decoration: AppTheme.foundColor),
+        Scaffold(
+          backgroundColor: Colors.transparent,
+          body: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(32.0),
+              child: Column(
+                children: [
+                  _buildHeader(),
+                  const SizedBox(height: 30),
+                  _buildLevelInfo(),
+                  const SizedBox(height: 30),
+                  _buildRoutineOptions(),
+                  const SizedBox(height: 40),
+                  if (selectedRoutine.isNotEmpty) _buildStartButton(),
+                ],
+              ),
             ),
           ),
         ),
-      ),
+        // ← AGREGAR LOADING OVERLAY
+        if (_isLoading)
+          Container(
+            color: Colors.black.withOpacity(0.5),
+            child: const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accentColor),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -155,7 +174,7 @@ class _RoutineSelectionScreenState extends State<RoutineSelectionScreen> {
     return Row(
       children: [
         IconButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: _isLoading ? null : () => Navigator.pop(context),
           icon: const Icon(
             Icons.arrow_back_ios,
             color: AppTheme.iconColor,
@@ -246,11 +265,14 @@ class _RoutineSelectionScreenState extends State<RoutineSelectionScreen> {
     bool isSelected = selectedRoutine == routine.id;
 
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          selectedRoutine = routine.id;
-        });
-      },
+      onTap:
+          _isLoading
+              ? null
+              : () {
+                setState(() {
+                  selectedRoutine = routine.id;
+                });
+              },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(20),
@@ -368,32 +390,18 @@ class _RoutineSelectionScreenState extends State<RoutineSelectionScreen> {
       height: 60,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
-        gradient: const LinearGradient(
-          colors: [AppTheme.accentColor, Color(0xFFFFA500)],
+        gradient: LinearGradient(
+          colors:
+              _isLoading
+                  ? [
+                    AppTheme.accentColor.withOpacity(0.5),
+                    const Color(0xFFFFA500).withOpacity(0.5),
+                  ]
+                  : [AppTheme.accentColor, const Color(0xFFFFA500)],
         ),
       ),
       child: ElevatedButton(
-        onPressed: () {
-          final selectedRoutineData = currentRoutines.firstWhere(
-            (routine) => routine.id == selectedRoutine,
-          );
-          debugPrint('Rutina seleccionada: ${selectedRoutineData.title}');
-          debugPrint('Nivel: ${widget.selectedLevel}');
-          // Aquí puedes navegar a la siguiente pantalla
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder:
-                  (context) => RoutineDetailsScreen(
-                    routineName: '',
-                    level: '',
-                    difficulty: '',
-                    fitnessLevel: '',
-                    routineId: '',
-                  ),
-            ),
-          );
-        },
+        onPressed: _isLoading ? null : _handleContinue, // ← CAMBIO AQUÍ
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
@@ -401,41 +409,117 @@ class _RoutineSelectionScreenState extends State<RoutineSelectionScreen> {
             borderRadius: BorderRadius.circular(30),
           ),
         ),
-        child: const Text(
-          'Continuar',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: AppTheme.primaryColor,
-          ),
+        child:
+            _isLoading
+                ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: AppTheme.primaryColor,
+                    strokeWidth: 2.5,
+                  ),
+                )
+                : const Text(
+                  'Continuar',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primaryColor,
+                  ),
+                ),
+      ),
+    );
+  }
+
+  // ✅ NUEVO MÉTODO PARA MANEJAR LA CONTINUACIÓN
+  Future<void> _handleContinue() async {
+    final selectedRoutineData = currentRoutines.firstWhere(
+      (routine) => routine.id == selectedRoutine,
+    );
+
+    debugPrint('🎯 Rutina seleccionada: ${selectedRoutineData.title}');
+    debugPrint('🎯 Nivel: ${widget.selectedLevel}');
+
+    setState(() => _isLoading = true);
+
+    try {
+      // ✅ Guardar la rutina seleccionada y marcar onboarding como completado
+      final userData = {
+        'selectedRoutineId': selectedRoutine,
+        'selectedRoutineName': selectedRoutineData.title,
+        'profileCompleted': true, // ✅ AHORA SÍ marcar como completado
+        'onboardingCompleted': true,
+        'onboardingStep': 'completed',
+        'completedAt': DateTime.now().toIso8601String(),
+      };
+
+      final success = await FirebaseService.updateCurrentUserProfile(userData);
+
+      if (mounted) {
+        if (success) {
+          // ✅ Navegar a los detalles de la rutina seleccionada
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder:
+                  (context) => RoutineDetailsScreen(
+                    routineId: selectedRoutine,
+                    routineName: selectedRoutineData.title,
+                    level: levelTitle,
+                    difficulty: selectedRoutineData.difficulty,
+                    fitnessLevel: widget.selectedLevel,
+                    routine: null, // Se cargará automáticamente con el ID
+                  ),
+            ),
+          );
+        } else {
+          _showErrorMessage('Error al guardar la rutina seleccionada');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorMessage('Error: ${e.toString()}');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _showErrorMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
         ),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        duration: const Duration(seconds: 4),
       ),
     );
   }
 
   Color _getDifficultyColor(String difficulty) {
     switch (difficulty.toLowerCase()) {
-      case 'muy fácil':
-        return Colors.green;
       case 'fácil':
-        return Colors.lightGreen;
-      case 'moderado':
+        return Colors.green;
+      case 'medio':
         return Colors.orange;
-      case 'intenso':
-        return Colors.deepOrange;
-      case 'extremo':
+      case 'difícil':
         return Colors.red;
-      case 'máximo':
-        return Colors.red[800]!;
-      case 'elite':
-        return Colors.purple;
       default:
         return AppTheme.accentColor;
     }
   }
 }
 
-// Clase para los datos de rutina (sin ejercicios)
+// Clase para los datos de rutina
 class RoutineData {
   final String id;
   final String title;

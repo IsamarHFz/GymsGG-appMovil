@@ -195,6 +195,7 @@ class _UserRoutinesScreenState extends State<UserRoutinesScreen> {
                     level: routine.level,
                     difficulty: routine.difficulty,
                     fitnessLevel: routine.level,
+                    routine: null,
                   ),
             ),
           );
@@ -364,6 +365,7 @@ class _UserRoutinesScreenState extends State<UserRoutinesScreen> {
               level: routine.level,
               difficulty: routine.difficulty,
               fitnessLevel: routine.level,
+              routine: null,
             ),
       ),
     );

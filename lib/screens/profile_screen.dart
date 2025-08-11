@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gymsgg_app/screens/history_screen.dart';
 import 'package:gymsgg_app/screens/routine_details_screen.dart';
+import 'package:gymsgg_app/services/firebase_service.dart';
 import 'package:gymsgg_app/services/user_service.dart';
 import 'package:gymsgg_app/theme/app_theme.dart';
 
@@ -25,21 +26,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadUserData() async {
-    if (!UserService.isLoggedIn) {
+    if (!FirebaseService.isUserLoggedIn()) {
       Navigator.pushReplacementNamed(context, '/login');
       return;
     }
 
     try {
-      final results = await Future.wait([
-        UserService.getUserProfile(),
-        UserService.getUserStats(),
-      ]);
+      // Usar FirebaseService en lugar de UserService
+      final userProfile = await FirebaseService.getUserProfile();
+
+      // Para las estadísticas, puedes crear un método similar o usar valores por defecto
+      final userStats = {'routines': 0, 'exercises': 0}; // Placeholder
 
       if (mounted) {
         setState(() {
-          _userProfile = results[0];
-          _userStats = results[1] as Map<String, int>;
+          _userProfile = userProfile;
+          _userStats = userStats;
           _isLoading = false;
         });
       }
@@ -47,6 +49,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
       print('Error cargando datos del usuario: $e');
       if (mounted) {
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  // Y reemplazar el método _performLogout:
+  Future<void> _performLogout() async {
+    try {
+      final result = await FirebaseService.signOut();
+      //
+      if (mounted) {
+        if (result['success']) {
+          Navigator.pushReplacementNamed(context, '/login');
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('❌ ${result['message']}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Error al cerrar sesión'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -451,6 +482,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         level: 'beginner',
                         difficulty: 'easy',
                         fitnessLevel: 'beginner',
+                        routine: null,
                       ),
                 ),
               );
@@ -546,24 +578,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Future<void> _performLogout() async {
-    try {
-      await UserService.signOut();
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/login');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('❌ Error al cerrar sesión'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
   // ✅ MÉTODOS DE NAVEGACIÓN CORREGIDOS
   void _navigateToRoutines() {
     print('🔍 Intentando navegar a RoutineDetailsScreen');
@@ -577,6 +591,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   level: 'beginner',
                   difficulty: 'easy',
                   fitnessLevel: 'beginner',
+                  routine: null,
                 ),
           ),
         )

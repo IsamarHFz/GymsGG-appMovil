@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:gymsgg_app/screens/routine_selection_screen.dart';
+import 'package:gymsgg_app/screens/routine_selection_screen.dart'; // ← CAMBIO: Navegar a selección de rutina
+import 'package:gymsgg_app/services/firebase_service.dart';
 import 'package:gymsgg_app/theme/app_theme.dart';
 
 class FitnessLevelScreen extends StatefulWidget {
@@ -12,6 +13,7 @@ class FitnessLevelScreen extends StatefulWidget {
 
 class _FitnessLevelScreenState extends State<FitnessLevelScreen> {
   String selectedLevel = '';
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +39,15 @@ class _FitnessLevelScreenState extends State<FitnessLevelScreen> {
             ),
           ),
         ),
+        if (_isLoading)
+          Container(
+            color: Colors.black.withOpacity(0.5),
+            child: const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accentColor),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -104,11 +115,14 @@ class _FitnessLevelScreenState extends State<FitnessLevelScreen> {
     final bool isSelected = selectedLevel == level;
 
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          selectedLevel = level;
-        });
-      },
+      onTap:
+          _isLoading
+              ? null
+              : () {
+                setState(() {
+                  selectedLevel = level;
+                });
+              },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         width: double.infinity,
@@ -194,24 +208,18 @@ class _FitnessLevelScreenState extends State<FitnessLevelScreen> {
       height: 60,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
-        gradient: const LinearGradient(
-          colors: [AppTheme.accentColor, Color(0xFFFFA500)],
+        gradient: LinearGradient(
+          colors:
+              _isLoading
+                  ? [
+                    AppTheme.accentColor.withOpacity(0.5),
+                    const Color(0xFFFFA500).withOpacity(0.5),
+                  ]
+                  : [AppTheme.accentColor, const Color(0xFFFFA500)],
         ),
       ),
       child: ElevatedButton(
-        onPressed: () {
-          if (kDebugMode) {
-            debugPrint('Nivel seleccionado: $selectedLevel');
-          }
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder:
-                  (context) =>
-                      RoutineSelectionScreen(selectedLevel: selectedLevel),
-            ),
-          );
-        },
+        onPressed: _isLoading ? null : _handleContinue,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
@@ -219,14 +227,93 @@ class _FitnessLevelScreenState extends State<FitnessLevelScreen> {
             borderRadius: BorderRadius.circular(30),
           ),
         ),
-        child: const Text(
-          'Continuar',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: AppTheme.primaryColor,
-          ),
+        child:
+            _isLoading
+                ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: AppTheme.primaryColor,
+                    strokeWidth: 2.5,
+                  ),
+                )
+                : const Text(
+                  'Continuar',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primaryColor,
+                  ),
+                ),
+      ),
+    );
+  }
+
+  // ✅ MÉTODO CORREGIDO: Solo guardar nivel y continuar al siguiente paso
+  Future<void> _handleContinue() async {
+    if (kDebugMode) {
+      debugPrint('Nivel seleccionado: $selectedLevel');
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // ✅ Solo guardar el nivel de fitness (NO marcar como completado aún)
+      final userData = {
+        'fitnessLevel': selectedLevel, // 'beginner', 'intermediate', 'advanced'
+        'onboardingStep': 'routine_selection', // Paso actual del onboarding
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+
+      final success = await FirebaseService.updateCurrentUserProfile(userData);
+
+      if (mounted) {
+        if (success) {
+          // ✅ Ir a selección de rutina (NO a ProfileScreen)
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder:
+                  (context) => RoutineSelectionScreen(
+                    selectedLevel: selectedLevel,
+                    fitnessLevel:
+                        selectedLevel, // Pasar como parámetro requerido
+                  ),
+            ),
+          );
+        } else {
+          _showErrorMessage('Error al guardar la configuración');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorMessage('Error: ${e.toString()}');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _showErrorMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
         ),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        duration: const Duration(seconds: 4),
       ),
     );
   }

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class FirebaseService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -147,61 +148,93 @@ class FirebaseService {
     }
   }
 
-  // Iniciar sesión con email o username
-  static Future<Map<String, dynamic>> signInUser({
+  // MÉTODO PRINCIPAL DE LOGIN
+  static Future<Map<String, dynamic>> signInUserWithProfile({
     required String emailOrUsername,
     required String password,
   }) async {
     try {
-      String email = emailOrUsername;
+      print('🔐 Intentando login con: $emailOrUsername');
 
-      // Si el usuario ingresó un username en lugar de email,
-      // necesitamos convertirlo a email
-      if (!emailOrUsername.contains('@')) {
-        // Buscar el email asociado al username en Firestore
-        final userEmail = await _getUserEmailByUsername(emailOrUsername);
-        if (userEmail == null) {
+      UserCredential userCredential;
+
+      if (emailOrUsername.contains('@')) {
+        // Es email
+        userCredential = await _auth.signInWithEmailAndPassword(
+          email: emailOrUsername,
+          password: password,
+        );
+      } else {
+        // Es username - convertir a email
+        final email = await _getUserEmailByUsername(emailOrUsername);
+        if (email == null) {
           return {'success': false, 'message': 'Usuario no encontrado'};
         }
-        email = userEmail;
+        userCredential = await _auth.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
       }
 
-      // Intentar hacer login con email y contraseña
-      final UserCredential userCredential = await _auth
-          .signInWithEmailAndPassword(email: email, password: password);
+      if (userCredential.user != null) {
+        print('✅ Login exitoso para: ${userCredential.user!.email}');
 
-      final User? user = userCredential.user;
-      if (user != null) {
-        // Verificar si el usuario existe en Firestore
-        final userData = await getUserData(user.uid);
+        // Verificar si el perfil está completo
+        final hasCompleteProfile = await _checkCompleteProfile(
+          userCredential.user!.uid,
+        );
+
+        // Guardar sesión
+        await _saveUserSession(userCredential.user!.email!);
 
         return {
           'success': true,
-          'message': 'Inicio de sesión exitoso',
-          'userId': user.uid,
-          'user': user,
-          'userData': userData,
+          'message': 'Login exitoso',
+          'hasCompleteProfile': hasCompleteProfile,
         };
+      } else {
+        return {'success': false, 'message': 'Error en la autenticación'};
       }
-
-      return {'success': false, 'message': 'Error al iniciar sesión'};
     } on FirebaseAuthException catch (e) {
-      if (kDebugMode) {
-        print('FirebaseAuthException in signInUser: ${e.code} - ${e.message}');
-      }
+      print('❌ FirebaseAuthException en login: ${e.code}');
       return {'success': false, 'message': _getAuthErrorMessage(e.code)};
     } catch (e) {
-      if (kDebugMode) {
-        print('Unexpected error in signInUser: $e');
-      }
-      return {
-        'success': false,
-        'message': 'Error inesperado al iniciar sesión',
-      };
+      print('❌ Error inesperado en login: $e');
+      return {'success': false, 'message': 'Error de conexión'};
     }
   }
 
-  // Método auxiliar para obtener email por username
+  // Verificar si el perfil está completo
+  static Future<bool> _checkCompleteProfile(String userId) async {
+    try {
+      final doc = await _firestore.collection('users').doc(userId).get();
+
+      if (!doc.exists) {
+        print('📄 No existe documento de usuario');
+        return false;
+      }
+
+      final userData = doc.data() as Map<String, dynamic>;
+
+      // Verificar campos esenciales para considerar el perfil completo
+      final bool isComplete =
+          userData['profileCompleted'] == true ||
+          userData['onboardingCompleted'] == true ||
+          (userData['fitnessLevel'] != null);
+
+      print('🔍 Perfil completo: $isComplete');
+      print('   - profileCompleted: ${userData['profileCompleted']}');
+      print('   - fitnessLevel: ${userData['fitnessLevel']}');
+      print('   - onboardingCompleted: ${userData['onboardingCompleted']}');
+
+      return isComplete;
+    } catch (e) {
+      print('❌ Error verificando perfil: $e');
+      return false;
+    }
+  }
+
+  // Obtener email por username
   static Future<String?> _getUserEmailByUsername(String username) async {
     try {
       final QuerySnapshot userQuery =
@@ -216,10 +249,100 @@ class FirebaseService {
       }
       return null;
     } catch (e) {
-      if (kDebugMode) {
-        print('Error getting user email by username: $e');
+      print('Error getting user email by username: $e');
+      return null;
+    }
+  }
+
+  // Guardar sesión del usuario
+  static Future<void> _saveUserSession(String email) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_email', email);
+      await prefs.setBool('user_logged_in', true);
+      print('Sesión guardada para: $email');
+    } catch (e) {
+      print('Error guardando sesión: $e');
+    }
+  }
+
+  // Limpiar sesión del usuario
+  static Future<void> _clearUserSession() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('user_email');
+      await prefs.setBool('user_logged_in', false);
+      print('Sesión limpiada');
+    } catch (e) {
+      print('Error limpiando sesión: $e');
+    }
+  }
+
+  // MÉTODO PARA ACTUALIZAR PERFIL (para el onboarding)
+  static Future<void> updateUserProfile(Map<String, dynamic> data) async {
+    try {
+      final user = _auth.currentUser;
+      if (user != null) {
+        final updateData = Map<String, dynamic>.from(data);
+        updateData['updatedAt'] = FieldValue.serverTimestamp();
+
+        await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .set(updateData, SetOptions(merge: true));
+
+        print('✅ Perfil actualizado: ${data.keys.join(', ')}');
+      } else {
+        throw Exception('No hay usuario autenticado');
+      }
+    } catch (e) {
+      print('❌ Error actualizando perfil: $e');
+      throw Exception('Error updating profile: ${e.toString()}');
+    }
+  }
+
+  // MÉTODO PARA OBTENER PERFIL COMPLETO
+  static Future<Map<String, dynamic>?> getUserProfile() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        print('No current user found');
+        return null;
+      }
+
+      final doc = await _firestore.collection('users').doc(user.uid).get();
+
+      if (doc.exists && doc.data() != null) {
+        final userData = doc.data() as Map<String, dynamic>;
+
+        // Agregar datos básicos de Firebase Auth si no están en Firestore
+        if (!userData.containsKey('email') && user.email != null) {
+          userData['email'] = user.email!;
+        }
+        if (!userData.containsKey('name') && user.displayName != null) {
+          userData['name'] = user.displayName!;
+        }
+
+        return userData;
       }
       return null;
+    } catch (e) {
+      print('❌ Error obteniendo perfil: $e');
+      return null;
+    }
+  }
+
+  // MÉTODO PARA VERIFICAR SI EL PERFIL ESTÁ COMPLETO (público)
+  static Future<bool> hasCompleteProfile() async {
+    try {
+      final user = _auth.currentUser;
+      if (user != null) {
+        return await _checkCompleteProfile(user.uid);
+      }
+      return false;
+    } catch (e) {
+      print('❌ Error verificando perfil completo: $e');
+      return false;
     }
   }
 
@@ -227,6 +350,7 @@ class FirebaseService {
   static Future<Map<String, dynamic>> signOut() async {
     try {
       await _auth.signOut();
+      await _clearUserSession();
       return {'success': true, 'message': 'Sesión cerrada exitosamente'};
     } catch (e) {
       if (kDebugMode) {
@@ -248,6 +372,23 @@ class FirebaseService {
 
   // Stream del estado de autenticación
   static Stream<User?> get authStateChanges => _auth.authStateChanges();
+
+  // Método para actualizar el perfil del usuario actual
+  static Future<bool> updateCurrentUserProfile(
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      final User? currentUser = getCurrentUser();
+      if (currentUser == null) return false;
+
+      return await updateUserData(currentUser.uid, data);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error updating current user profile: $e');
+      }
+      return false;
+    }
+  }
 
   // Método para obtener mensajes de error más amigables
   static String _getAuthErrorMessage(String errorCode) {
@@ -287,15 +428,5 @@ class FirebaseService {
 
   static bool isValidPassword(String password) {
     return password.length >= 6;
-  }
-
-  // OPCIONAL: Mantener el método signIn original para compatibilidad
-  // (solo si lo usas en otras partes de tu app)
-  static Future<Map<String, dynamic>> signIn({
-    required String email,
-    required String password,
-  }) async {
-    // Simplemente llama al nuevo método
-    return await signInUser(emailOrUsername: email, password: password);
   }
 }
